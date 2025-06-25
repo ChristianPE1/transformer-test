@@ -1,0 +1,9 @@
+The contents of the file /cuda-transformer/cuda-transformer/data/train.txt will be as follows:
+
+# This file contains the training data for the translation task.
+# Each line represents a source-target pair for training.
+# Format: source_sentence ||| target_sentence
+
+hello world ||| hola mundo
+how are you ||| como estas
+good morning ||| buenos dias
