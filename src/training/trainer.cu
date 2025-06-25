@@ -48,9 +48,6 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
             // BACKWARD PASS COMPLETO DEL TRANSFORMER
             model.backward(grad, optimizer.getLearningRate());
             
-            // 4. Update optimizer state (momentum, etc.)
-            optimizer.step();
-            
             std::cout << "[UPDATE] Gradientes aplicados con lr=" << optimizer.getLearningRate();
             
             std::cout << " [Updated]" << std::endl;

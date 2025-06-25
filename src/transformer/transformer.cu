@@ -404,19 +404,15 @@ void Transformer::updateWeights(const Matrix& gradients, float learning_rate) {
 
 // Add backward pass method
 void Transformer::backward(const Matrix& grad_output, float learning_rate) {
-    // Backward pass through the network
+    // Simplified backward pass - focus on updating the embeddings
     
-    // 1. Compute gradients for output projection
-    Matrix grad_decoder = grad_output; // Start with output gradients
+    std::cout << "[BACKWARD] Starting backward pass..." << std::endl;
     
-    // 2. Backward through cross attention (simplified)
-    // In a real implementation, you'd store intermediate values from forward pass
+    // For now, we'll focus on updating the target embeddings
+    // In a full implementation, you'd also update encoder/decoder layers
     
-    // 3. Update target embeddings based on gradients
-    updateTargetEmbeddings(grad_decoder, learning_rate);
-    
-    // 4. Update other parameters (encoder, decoder layers, etc.)
-    // This is where you'd update all the transformer layers
+    // Update target embeddings using the gradient
+    updateTargetEmbeddings(grad_output, learning_rate);
     
     std::cout << "[BACKWARD] Completed backward pass with lr=" << learning_rate << std::endl;
 }
@@ -429,25 +425,8 @@ void Transformer::updateTargetEmbeddings(const Matrix& gradients, float learning
         return;
     }
     
-    // Get current embedding matrix
-    Matrix& embed_matrix = target_embedding.getEmbeddings();
-    
-    // Apply gradients to the embeddings used in the last forward pass
-    for (int pos = 0; pos < last_target_tokens.size() && pos < gradients.getRows(); ++pos) {
-        int token_id = last_target_tokens[pos];
-        
-        if (token_id >= 0 && token_id < target_vocab_size) {
-            // Update embedding for this token
-            for (int d = 0; d < d_model; ++d) {
-                float current_val = embed_matrix.getElement(token_id, d);
-                float grad_val = gradients.getElement(pos, d);
-                
-                // Gradient descent: w = w - lr * grad
-                float new_val = current_val - learning_rate * grad_val;
-                embed_matrix.setElement(token_id, d, new_val);
-            }
-        }
-    }
+    // Use the existing updateWeights method of the embedding class
+    target_embedding.updateWeights(gradients, learning_rate, last_target_tokens);
     
     std::cout << "[UPDATE] Target embeddings updated for " << last_target_tokens.size() << " tokens" << std::endl;
 }
