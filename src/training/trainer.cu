@@ -20,43 +20,52 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
     std::cout << "  Procesando " << source_batches.size() << " muestras..." << std::endl;
     std::cout << "  Vocabulario objetivo: " << num_classes << " clases" << std::endl;
     
+    double total_loss = 0.0;
+    int processed_samples = 0;
+    
     for (size_t i = 0; i < source_batches.size(); ++i) {
-        std::cout << "    Procesando muestra " << (i+1) << "/" << source_batches.size() << "..." << std::flush;
+        std::cout << "    Muestra " << (i+1) << "/" << source_batches.size() << ": " << std::flush;
         
         // 1. Forward pass
         try {
             Matrix output = model.forward(source_batches[i], target_batches[i]);
-            std::cout << " Forward OK..." << std::flush;
+            std::cout << "FWD✓ " << std::flush;
             
-            // SIMPLIFICA EL TARGET - No uses one-hot para todas las clases
+            // Target simplificado
             int target_length = target_batches[i].size();
-            Matrix target(target_length, 1);  // Solo una columna con los índices
+            Matrix target(target_length, 1);
             for (int j = 0; j < target_length; ++j) {
                 target.setElement(j, 0, target_batches[i][j]);
             }
-            std::cout << " Target OK..." << std::flush;
             
-            // 2. Loss simplificado
+            // 2. Loss real
             double loss = loss_fn.forward(output, target);
-            std::cout << " [FAST-LOSS] batch:" << target_length << " classes:" << num_classes << " loss:" << std::fixed << std::setprecision(1) << loss;
-              // 3. Backward pass - AHORA SÍ ACTUALIZA LOS PESOS
+            std::cout << " Loss: " << std::fixed << std::setprecision(3) << loss << std::flush;
+            
+            // 3. Backward pass - AHORA SÍ ACTUALIZA LOS PESOS
             Matrix grad = loss_fn.backward(output, target);
             
-            // SIMPLE WEIGHT UPDATE - Usa el learning rate del optimizador
+            // USAR EL OPTIMIZADOR CORRECTAMENTE
             model.updateWeights(grad, optimizer.getLearningRate());
             
-            std::cout << " Loss: " << std::fixed << std::setprecision(1) << loss << std::endl;
-              } catch (const std::exception& e) {
+            std::cout << " [Updated]" << std::endl;
+            
+            total_loss += loss;
+            processed_samples++;
+            
+        } catch (const std::exception& e) {
             std::cout << " ERROR: " << e.what() << std::endl;
             return;
         }
         
         // Procesar más muestras para mejor aprendizaje
         if (i >= 7) { // Aumentado de 2 a 7 para procesar 8 muestras
-            std::cout << "    Procesando 8 muestras por época..." << std::endl;
             break;
         }
     }
+    
+    double avg_loss = total_loss / processed_samples;
+    std::cout << "  Promedio de loss: " << std::fixed << std::setprecision(3) << avg_loss << std::endl;
 }
 
 Trainer::Trainer(Transformer& model, Optimizer& optimizer, Loss& loss_fn, int batch_size, int epochs)

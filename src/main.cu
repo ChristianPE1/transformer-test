@@ -119,7 +119,7 @@ int main()
             // Configuración de entrenamiento
             int epochs = 15;  // Más épocas para mejor aprendizaje
             int batch_size = 16;  // Batch más pequeño para updates más frecuentes
-            float learning_rate = 0.02f;  // Learning rate un poco más alto
+            float learning_rate = 0.001f;  // Learning rate apropiado para transformers
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
