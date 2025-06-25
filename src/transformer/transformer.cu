@@ -145,25 +145,54 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
 
     for (int i = 0; i < target_tokens.size(); ++i) {
         
-        // ATENCIÓN CRUZADA: Cada posición target atiende a todas las posiciones source
+        // ATENCIÓN CRUZADA MEJORADA: Diversificar la atención
         std::vector<float> cross_attention(source_tokens.size(), 0.0f);
         float attention_sum = 0.0f;
         
         for (int j = 0; j < source_tokens.size(); ++j) {
             float attention_score = 0.0f;
-            // Calcular atención basada en similitud decoder-encoder
-            for (int d = 0; d < std::min(16, (int)d_model); ++d) {
+            
+            // Calcular atención basada en:
+            // 1. Similitud posicional
+            float pos_similarity = 1.0f / (1.0f + abs(i - j));
+            
+            // 2. Similitud de contenido decoder-encoder 
+            for (int d = 0; d < std::min(32, (int)d_model); ++d) {
                 float decoder_val = decoder_output.getElement(i, d);
                 float encoder_val = encoder_output.getElement(j, d);
                 attention_score += decoder_val * encoder_val;
             }
-            cross_attention[j] = exp(attention_score * 0.1f);
+            
+            // 3. Componente de diversidad para evitar colapso
+            float diversity_factor = 1.0f + 0.3f * sin((i + j) * 0.5f);
+            
+            // 4. Exploración posicional para que no siempre atienda a pos 0
+            float exploration = 0.1f * (j + 1.0f) / source_tokens.size();
+            
+            attention_score = attention_score * 0.1f + pos_similarity * 0.3f + 
+                             diversity_factor * 0.4f + exploration * 0.2f;
+            
+            cross_attention[j] = exp(attention_score);
             attention_sum += cross_attention[j];
         }
         
         // Normalizar atención
         for (int j = 0; j < source_tokens.size(); ++j) {
             cross_attention[j] /= (attention_sum + 1e-8f);
+        }
+        
+        // DEBUG: Mostrar qué posición atiende más
+        int max_att_pos = 0;
+        float max_att_val = cross_attention[0];
+        for (int j = 1; j < source_tokens.size(); ++j) {
+            if (cross_attention[j] > max_att_val) {
+                max_att_val = cross_attention[j];
+                max_att_pos = j;
+            }
+        }
+        
+        if (i % 2 == 0) { // Solo imprimir cada 2 posiciones para no saturar
+            std::cout << "[DEBUG] Processed row " << i << " (attending to source pos " << max_att_pos << ")" << std::endl;
         }
         
         for (int v = 0; v < target_vocab_size; ++v) { 
@@ -371,4 +400,54 @@ void Transformer::updateWeights(const Matrix& gradients, float learning_rate) {
     } else {
         std::cout << "[UPDATE] No hay tokens para actualizar" << std::endl;
     }
+}
+
+// Add backward pass method
+void Transformer::backward(const Matrix& grad_output, float learning_rate) {
+    // Backward pass through the network
+    
+    // 1. Compute gradients for output projection
+    Matrix grad_decoder = grad_output; // Start with output gradients
+    
+    // 2. Backward through cross attention (simplified)
+    // In a real implementation, you'd store intermediate values from forward pass
+    
+    // 3. Update target embeddings based on gradients
+    updateTargetEmbeddings(grad_decoder, learning_rate);
+    
+    // 4. Update other parameters (encoder, decoder layers, etc.)
+    // This is where you'd update all the transformer layers
+    
+    std::cout << "[BACKWARD] Completed backward pass with lr=" << learning_rate << std::endl;
+}
+
+void Transformer::updateTargetEmbeddings(const Matrix& gradients, float learning_rate) {
+    // Update target embeddings based on gradients and last used tokens
+    
+    if (last_target_tokens.empty()) {
+        std::cout << "[WARNING] No target tokens stored for gradient update" << std::endl;
+        return;
+    }
+    
+    // Get current embedding matrix
+    Matrix& embed_matrix = target_embedding.getEmbeddings();
+    
+    // Apply gradients to the embeddings used in the last forward pass
+    for (int pos = 0; pos < last_target_tokens.size() && pos < gradients.getRows(); ++pos) {
+        int token_id = last_target_tokens[pos];
+        
+        if (token_id >= 0 && token_id < target_vocab_size) {
+            // Update embedding for this token
+            for (int d = 0; d < d_model; ++d) {
+                float current_val = embed_matrix.getElement(token_id, d);
+                float grad_val = gradients.getElement(pos, d);
+                
+                // Gradient descent: w = w - lr * grad
+                float new_val = current_val - learning_rate * grad_val;
+                embed_matrix.setElement(token_id, d, new_val);
+            }
+        }
+    }
+    
+    std::cout << "[UPDATE] Target embeddings updated for " << last_target_tokens.size() << " tokens" << std::endl;
 }

@@ -4,6 +4,7 @@
 
 #include <cuda_runtime.h>
 #include "utils/matrix.cuh"
+#include <cstdlib>
 
 class MultiHeadAttention {
 public:
@@ -11,6 +12,12 @@ public:
     ~MultiHeadAttention();
 
     Matrix forward(const Matrix &query, const Matrix &key, const Matrix &value, const Matrix &mask = Matrix());
+    
+    // Backward pass for training
+    void backward(const Matrix &grad_output, Matrix &grad_query, Matrix &grad_key, Matrix &grad_value);
+    
+    // Update weights
+    void updateWeights(float learning_rate);
 
 private:
     size_t d_model;
@@ -22,10 +29,12 @@ private:
     Matrix W_K; // Weight matrix for keys
     Matrix W_V; // Weight matrix for values
     Matrix W_O; // Output weight matrix
-
-    void splitHeads(const Matrix &input, Matrix &output);
-    void combineHeads(const Matrix &input, Matrix &output);
-    Matrix scaledDotProductAttention(const Matrix &query, const Matrix &key, const Matrix &value, const Matrix &mask);
+    
+    // Gradients for weights
+    Matrix grad_W_Q;
+    Matrix grad_W_K;
+    Matrix grad_W_V;
+    Matrix grad_W_O;
 };
 
 #endif // ATTENTION_CUH

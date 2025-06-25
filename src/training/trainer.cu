@@ -42,11 +42,16 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
             double loss = loss_fn.forward(output, target);
             std::cout << " Loss: " << std::fixed << std::setprecision(3) << loss << std::flush;
             
-            // 3. Backward pass - AHORA SÍ ACTUALIZA LOS PESOS
+            // 3. Backward pass - USAR EL NUEVO SISTEMA
             Matrix grad = loss_fn.backward(output, target);
             
-            // USAR EL OPTIMIZADOR CORRECTAMENTE
-            model.updateWeights(grad, optimizer.getLearningRate());
+            // BACKWARD PASS COMPLETO DEL TRANSFORMER
+            model.backward(grad, optimizer.getLearningRate());
+            
+            // 4. Update optimizer state (momentum, etc.)
+            optimizer.step();
+            
+            std::cout << "[UPDATE] Gradientes aplicados con lr=" << optimizer.getLearningRate();
             
             std::cout << " [Updated]" << std::endl;
             

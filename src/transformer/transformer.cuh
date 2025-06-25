@@ -36,7 +36,9 @@ public:
                               size_t max_length = 50);
     
     // Training methods
+    void backward(const Matrix& grad_output, float learning_rate);
     void updateWeights(const Matrix& gradients, float learning_rate);
+    void updateTargetEmbeddings(const Matrix& gradients, float learning_rate);
     
     size_t getTargetVocabSize() const { return target_vocab_size; }
 };
