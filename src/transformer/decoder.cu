@@ -11,7 +11,13 @@ Matrix DecoderLayer::forward(const Matrix &input, const Matrix &encoder_output, 
     Matrix norm1_output = norm1.forward(input.add(self_att_output));
 
     // Encoder-decoder attention
-    Matrix enc_dec_att_output = encoder_decoder_attention.forward(norm1_output, encoder_output, encoder_output, src_mask ? *src_mask : Matrix());
+    Matrix enc_dec_att_output;
+    if (src_mask) {
+        enc_dec_att_output = encoder_decoder_attention.forward(norm1_output, encoder_output, encoder_output, *src_mask);
+    } else {
+        Matrix empty_mask;  // Create an empty mask
+        enc_dec_att_output = encoder_decoder_attention.forward(norm1_output, encoder_output, encoder_output, empty_mask);
+    }
     Matrix norm2_output = norm2.forward(norm1_output.add(enc_dec_att_output));
 
     // Feed-forward
