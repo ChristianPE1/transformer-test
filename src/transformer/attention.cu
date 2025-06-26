@@ -1,6 +1,7 @@
 // filepath: /cuda-transformer/cuda-transformer/src/transformer/attention.cu
 #include "attention.cuh"
 #include "utils/cuda_utils.cuh"
+#include "../../include/common.cuh"
 #include <cmath>
 
 #define MAX_SEQ_LEN 512
@@ -149,7 +150,7 @@ Matrix MultiHeadAttention::forward(const Matrix &query, const Matrix &key, const
     );
     
     cudaDeviceSynchronize();
-    CUDA_CHECK_ERROR();
+    CHECK_CUDA(cudaGetLastError());
 
     return final_output;
 }
