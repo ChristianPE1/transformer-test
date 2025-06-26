@@ -119,19 +119,6 @@ Matrix Matrix::add(const Matrix &other) const
     return result;
 }
 
-    // DEBUG: Check result after addition
-    std::vector<float> debug_result(std::min(10, size));
-    cudaMemcpy(debug_result.data(), result.data, debug_result.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    
-    printf("[MATRIX_ADD_DEBUG] Result first 5 values: ");
-    for (int i = 0; i < std::min(5, (int)debug_result.size()); i++) {
-        printf("%.6f ", debug_result[i]);
-    }
-    printf("\n");
-
-    return result;
-}
-
 Matrix Matrix::multiply(const Matrix &other) const
 {
     // Implementación simplificada
