@@ -39,6 +39,21 @@ public:
         std::cout << "[LOSS] Predictions range: [" << min_pred << ", " << max_pred << "]";
         if (has_nan) std::cout << " [HAS NaN!]";
         if (has_inf) std::cout << " [HAS INF!]";
+        
+        // Calculate prediction diversity (how spread out the predictions are)
+        float pred_variance = 0.0f;
+        float pred_mean = 0.0f;
+        for (size_t i = 0; i < pred_check.size(); ++i) {
+            pred_mean += pred_check[i];
+        }
+        pred_mean /= pred_check.size();
+        
+        for (size_t i = 0; i < pred_check.size(); ++i) {
+            pred_variance += (pred_check[i] - pred_mean) * (pred_check[i] - pred_mean);
+        }
+        pred_variance /= pred_check.size();
+        
+        std::cout << " Var:" << std::setprecision(3) << pred_variance;
         std::cout << std::endl;
         
         if (has_nan || has_inf || max_pred > 50.0f || min_pred < -50.0f) {

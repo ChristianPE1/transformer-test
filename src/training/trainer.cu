@@ -40,11 +40,13 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
             
             // 2. Loss real
             double loss = loss_fn.forward(output, target);
-            std::cout << " Loss: " << std::fixed << std::setprecision(3) << loss << std::flush;
             
             // Calculate adaptive learning rate
             float current_lr = calculateLearningRate(global_step, loss);
             global_step++;
+            
+            std::cout << " Loss: " << std::fixed << std::setprecision(3) << loss 
+                      << " (LR: " << std::setprecision(4) << current_lr << ")" << std::flush;
             
             // 3. Backward pass - USAR EL NUEVO SISTEMA
             Matrix grad = loss_fn.backward(output, target);
@@ -82,20 +84,60 @@ Trainer::Trainer(Transformer& model, Optimizer& optimizer, Loss& loss_fn, int ba
 float Trainer::calculateLearningRate(int step, float current_loss) {
     float base_lr = optimizer.getLearningRate();
     
-    // Warm-up for first 50 steps
-    if (step < 50) {
-        float warmup_factor = (float)(step + 1) / 50.0f; // +1 to avoid lr=0 at step 0
+    // Track loss history for better adaptive learning rate
+    static std::vector<float> loss_history;
+    static int stagnant_count = 0;
+    
+    loss_history.push_back(current_loss);
+    if (loss_history.size() > 15) {
+        loss_history.erase(loss_history.begin());
+    }
+    
+    // Warm-up for first 20 steps
+    if (step < 20) {
+        float warmup_factor = (float)(step + 1) / 20.0f;
         return base_lr * warmup_factor;
     }
     
-    // If loss is stuck (not decreasing), increase learning rate
-    if (step > 0 && step % 10 == 0) {
-        static float last_loss = current_loss;
-        if (current_loss >= last_loss - 0.01f) { // Loss not decreasing significantly
-            return base_lr * 1.5f; // Increase by 50%
+    // Check if loss is stagnant (last 5 losses)
+    if (loss_history.size() >= 8) {
+        float recent_avg = 0.0f, older_avg = 0.0f;
+        
+        // Average of last 4 losses
+        for (int i = loss_history.size() - 4; i < loss_history.size(); ++i) {
+            recent_avg += loss_history[i];
         }
-        last_loss = current_loss;
+        recent_avg /= 4.0f;
+        
+        // Average of 4 losses before that
+        for (int i = loss_history.size() - 8; i < loss_history.size() - 4; ++i) {
+            older_avg += loss_history[i];
+        }
+        older_avg /= 4.0f;
+        
+        float improvement = older_avg - recent_avg;
+        
+        if (improvement < 0.02f) {  // Very little improvement
+            stagnant_count++;
+            if (stagnant_count >= 2) {  // Been stagnant for a while
+                float adaptive_lr = base_lr * 3.0f;  // Triple the learning rate
+                adaptive_lr = std::min(adaptive_lr, 0.05f);  // Cap at 0.05
+                
+                std::cout << "[TRAINER] Loss stagnant (improvement: " << improvement 
+                          << "), boosting LR to " << adaptive_lr << std::endl;
+                
+                stagnant_count = 0;  // Reset counter
+                return adaptive_lr;
+            }
+        } else {
+            stagnant_count = 0;  // Reset if we see improvement
+            
+            if (improvement > 0.1f) {  // Good improvement
+                return base_lr * 0.9f;  // Slightly reduce
+            }
+        }
     }
     
     return base_lr;
+}
 }

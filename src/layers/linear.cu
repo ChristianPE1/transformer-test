@@ -245,8 +245,14 @@ void Linear::initialize() {
     // Use Xavier initialization - more conservative for final layers
     float scale = sqrt(1.0f / input_dim); // Conservative initialization
     
+    // For output projection layers (large output_dim), use even smaller scale
+    if (output_dim > 500) {  // This is likely the output projection to vocab
+        scale *= 0.1f;  // Much smaller initialization for output layer
+        std::cout << "[LINEAR] Output projection layer detected, using extra small scale" << std::endl;
+    }
+    
     // Clip scale to prevent extreme values
-    scale = std::min(scale, 0.1f); // Maximum scale of 0.1
+    scale = std::min(scale, 0.05f); // Maximum scale of 0.05
     
     // Random initialization for weights
     srand(time(nullptr)); // Seed for reproducibility
@@ -254,8 +260,8 @@ void Linear::initialize() {
         // Generate random value in range [-scale, scale]
         float rand_val = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * scale;
         
-        // Clamp to prevent extreme values
-        rand_val = std::max(-0.1f, std::min(0.1f, rand_val));
+        // Extra clamp to prevent extreme values
+        rand_val = std::max(-0.02f, std::min(0.02f, rand_val));
         
         weight_data[i] = rand_val;
     }
