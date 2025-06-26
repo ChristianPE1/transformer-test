@@ -6,7 +6,6 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdlib>
-#include <cmath>
 
 #define MAX_SEQ_LEN 512
 
@@ -209,21 +208,6 @@ void MultiHeadAttention::backward(const Matrix &grad_output, Matrix &grad_query,
     grad_query.copyFromHost(h_grad_output);
     grad_key.copyFromHost(h_grad_output);
     grad_value.copyFromHost(h_grad_output);
-}
-    
-    cudaMemset(grad_query.getData(), 0, seq_len * d_model * sizeof(float));
-    cudaMemset(grad_key.getData(), 0, seq_len * d_model * sizeof(float));
-    cudaMemset(grad_value.getData(), 0, seq_len * d_model * sizeof(float));
-    
-    // Simple backward approximation - in a full implementation you'd store
-    // attention weights from forward pass and compute proper gradients
-    
-    // For now, we'll use a simplified approach where gradients flow back
-    // proportionally through the attention mechanism
-    
-    cudaMemcpy(grad_query.getData(), grad_output.getData(), seq_len * d_model * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(grad_key.getData(), grad_output.getData(), seq_len * d_model * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(grad_value.getData(), grad_output.getData(), seq_len * d_model * sizeof(float), cudaMemcpyDeviceToDevice);
 }
 
 void MultiHeadAttention::updateWeights(float learning_rate) {
