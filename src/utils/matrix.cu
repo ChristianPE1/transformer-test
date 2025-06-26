@@ -73,26 +73,7 @@ Matrix Matrix::add(const Matrix &other) const
     Matrix result(rows, cols);
     int size = rows * cols;
 
-    // DEBUG: Check input matrices before addition
-    std::vector<float> debug_a(std::min(10, size));
-    std::vector<float> debug_b(std::min(10, size));
-    
-    cudaMemcpy(debug_a.data(), data, debug_a.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(debug_b.data(), other.data, debug_b.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    
-    printf("[MATRIX_ADD_DEBUG] Matrix A first 5 values: ");
-    for (int i = 0; i < std::min(5, (int)debug_a.size()); i++) {
-        printf("%.6f ", debug_a[i]);
-    }
-    printf("\n");
-    
-    printf("[MATRIX_ADD_DEBUG] Matrix B first 5 values: ");
-    for (int i = 0; i < std::min(5, (int)debug_b.size()); i++) {
-        printf("%.6f ", debug_b[i]);
-    }
-    printf("\n");
-
-    // TEMPORARY FIX: Use CPU implementation instead of broken CUDA kernel
+    // Use CPU implementation for stability
     std::vector<float> host_a(size);
     std::vector<float> host_b(size);
     std::vector<float> host_result(size);
@@ -108,13 +89,6 @@ Matrix Matrix::add(const Matrix &other) const
     
     // Copy result back to GPU
     cudaMemcpy(result.data, host_result.data(), size * sizeof(float), cudaMemcpyHostToDevice);
-
-    // DEBUG: Check result after addition
-    printf("[MATRIX_ADD_DEBUG] Result first 5 values: ");
-    for (int i = 0; i < std::min(5, size); i++) {
-        printf("%.6f ", host_result[i]);
-    }
-    printf("\n");
 
     return result;
 }

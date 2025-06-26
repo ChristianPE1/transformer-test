@@ -127,14 +127,7 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
     cudaMemcpy(output.getData(), host_output.data(), seq_len * d_model * sizeof(float), cudaMemcpyHostToDevice);
     cudaDeviceSynchronize();
 
-    // EXTENSIVE DEBUG OUTPUT
-    std::cout << "[EMBEDDING] Input tokens: ";
-    for (int i = 0; i < std::min(5, seq_len); ++i) {
-        std::cout << input_tokens[i] << " ";
-    }
-    std::cout << std::endl;
-
-    // Check for non-zero values in output
+    // Basic stats only
     int non_zero_count = 0;
     float sum = 0.0f, max_val = -1e10f, min_val = 1e10f;
     for (int i = 0; i < seq_len * d_model; ++i) {
@@ -146,38 +139,9 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
         }
     }
     
-    std::cout << "[EMBEDDING] Stats: " << non_zero_count << "/" << (seq_len * d_model) 
-              << " non-zero values, sum=" << sum 
+    std::cout << "[EMBEDDING] " << non_zero_count << "/" << (seq_len * d_model) 
+              << " non-zero, sum=" << std::fixed << std::setprecision(3) << sum 
               << ", range=[" << min_val << ", " << max_val << "]" << std::endl;
-
-    // Sample of actual values
-    std::cout << "[EMBEDDING] First 10 output values: ";
-    for (int i = 0; i < std::min(10, (int)host_output.size()); ++i) {
-        std::cout << std::fixed << std::setprecision(6) << host_output[i] << " ";
-    }
-    std::cout << std::endl;
-
-    // Verify specific tokens
-    if (!input_tokens.empty() && seq_len >= 1) {
-        int first_token = input_tokens[0];
-        if (first_token >= 0 && first_token < (int)vocab_size) {
-            std::cout << "[EMBEDDING] Token " << first_token << " embedding values: ";
-            for (int i = 0; i < std::min(8, (int)d_model); ++i) {
-                std::cout << std::fixed << std::setprecision(6) << host_output[i] << " ";
-            }
-            std::cout << std::endl;
-        }
-    }
-
-    // CRITICAL: Make sure the Matrix output actually contains the right data
-    // Let's verify the data was copied correctly to the device
-    std::vector<float> verification(std::min(20, seq_len * (int)d_model));
-    output.copyToHost(verification);
-    std::cout << "[EMBEDDING] GPU verification - first 10 values: ";
-    for (int i = 0; i < std::min(10, (int)verification.size()); ++i) {
-        std::cout << std::fixed << std::setprecision(6) << verification[i] << " ";
-    }
-    std::cout << std::endl;
 
     std::cout << "[EMBEDDING] Forward pass completed - Output ready for encoder/decoder" << std::endl;
     return output;

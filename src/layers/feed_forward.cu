@@ -46,7 +46,7 @@ Matrix FeedForward::forward(const Matrix &input) {
     int d_ff = this->d_ff;
     int output_dim = this->d_model;
 
-    // DEBUG: Use CPU implementation to debug the issue
+    // Use CPU implementation for stability
     std::vector<float> input_h, W1_h, W2_h, b1_h, b2_h;
     input.copyToHost(input_h);
     W1.copyToHost(W1_h);
@@ -58,27 +58,6 @@ Matrix FeedForward::forward(const Matrix &input) {
     cudaMemcpy(b2_h.data(), b2, d_model * sizeof(float), cudaMemcpyDeviceToHost);
 
     std::vector<float> output_h(rows * output_dim);
-    
-    std::cout << "[FEEDFORWARD] Forward pass: " << rows << "x" << input_dim 
-              << " -> " << rows << "x" << d_ff << " -> " << rows << "x" << output_dim << std::endl;
-    
-    // Check input values
-    int non_zero_input = 0;
-    for (size_t i = 0; i < input_h.size(); ++i) {
-        if (std::abs(input_h[i]) > 1e-6f) non_zero_input++;
-    }
-    std::cout << "[FEEDFORWARD] Input non-zero: " << non_zero_input << "/" << input_h.size() << std::endl;
-    
-    // Check weight values
-    int non_zero_W1 = 0, non_zero_W2 = 0;
-    for (size_t i = 0; i < W1_h.size(); ++i) {
-        if (std::abs(W1_h[i]) > 1e-6f) non_zero_W1++;
-    }
-    for (size_t i = 0; i < W2_h.size(); ++i) {
-        if (std::abs(W2_h[i]) > 1e-6f) non_zero_W2++;
-    }
-    std::cout << "[FEEDFORWARD] W1 non-zero: " << non_zero_W1 << "/" << W1_h.size() << std::endl;
-    std::cout << "[FEEDFORWARD] W2 non-zero: " << non_zero_W2 << "/" << W2_h.size() << std::endl;
     
     // Create intermediate activation matrix for the hidden layer
     std::vector<float> hidden(rows * d_ff);
@@ -95,17 +74,6 @@ Matrix FeedForward::forward(const Matrix &input) {
         }
     }
     
-    // Check hidden layer values
-    int non_zero_hidden = 0;
-    float min_hidden = hidden[0], max_hidden = hidden[0];
-    for (size_t i = 0; i < hidden.size(); ++i) {
-        if (std::abs(hidden[i]) > 1e-6f) non_zero_hidden++;
-        min_hidden = std::min(min_hidden, hidden[i]);
-        max_hidden = std::max(max_hidden, hidden[i]);
-    }
-    std::cout << "[FEEDFORWARD] Hidden non-zero: " << non_zero_hidden << "/" << hidden.size() 
-              << " range: [" << min_hidden << ", " << max_hidden << "]" << std::endl;
-    
     // Second layer: hidden -> output (no activation)
     for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < output_dim; ++j) {
@@ -117,24 +85,6 @@ Matrix FeedForward::forward(const Matrix &input) {
             output_h[i * output_dim + j] = sum;
         }
     }
-    
-    // Check output values
-    int non_zero_output = 0;
-    float min_output = output_h[0], max_output = output_h[0];
-    for (size_t i = 0; i < output_h.size(); ++i) {
-        if (std::abs(output_h[i]) > 1e-6f) non_zero_output++;
-        min_output = std::min(min_output, output_h[i]);
-        max_output = std::max(max_output, output_h[i]);
-    }
-    std::cout << "[FEEDFORWARD] Output non-zero: " << non_zero_output << "/" << output_h.size() 
-              << " range: [" << min_output << ", " << max_output << "]" << std::endl;
-    
-    // Sample values for debugging
-    std::cout << "[FEEDFORWARD] Sample values: ";
-    for (int i = 0; i < std::min(5, (int)output_h.size()); ++i) {
-        std::cout << output_h[i] << " ";
-    }
-    std::cout << std::endl;
     
     Matrix output(rows, output_dim);
     output.copyFromHost(output_h);
