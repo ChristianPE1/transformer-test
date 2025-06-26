@@ -140,4 +140,3 @@ float Trainer::calculateLearningRate(int step, float current_loss) {
     
     return base_lr;
 }
-}
