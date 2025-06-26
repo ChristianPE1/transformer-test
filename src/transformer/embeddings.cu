@@ -6,6 +6,9 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
 
 __global__ void initEmbeddingsKernel(float *embeddings, int vocab_size, int d_model, unsigned long seed)
 {
@@ -52,12 +55,37 @@ Embedding::~Embedding()
 
 void Embedding::initializeWeights()
 {
+    // SIMPLIFIED AND ROBUST INITIALIZATION
     int total_size = vocab_size * d_model;
-    int blockSize = 256;
-    int numBlocks = (total_size + blockSize - 1) / blockSize;
-
-    initEmbeddingsKernel<<<numBlocks, blockSize>>>(weights, vocab_size, d_model, time(nullptr));
+    
+    // Initialize on host first
+    std::vector<float> host_weights(total_size);
+    
+    // Simple random initialization on host
+    srand(time(nullptr));
+    for (int i = 0; i < total_size; ++i) {
+        // Xavier initialization: uniform distribution in [-sqrt(6/(fan_in + fan_out)), sqrt(6/(fan_in + fan_out))]
+        float range = sqrt(6.0f / (vocab_size + d_model));
+        host_weights[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * range;
+        
+        // Ensure non-zero values for debugging
+        if (abs(host_weights[i]) < 1e-6f) {
+            host_weights[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.01f;
+        }
+    }
+    
+    // Copy to device
+    cudaMemcpy(weights, host_weights.data(), total_size * sizeof(float), cudaMemcpyHostToDevice);
     cudaDeviceSynchronize();
+    
+    // DEBUG: Verify initialization worked
+    std::vector<float> verify_weights(10);
+    cudaMemcpy(verify_weights.data(), weights, 10 * sizeof(float), cudaMemcpyDeviceToHost);
+    std::cout << "[EMBEDDING] INIT - Sample weights after initialization: ";
+    for (int i = 0; i < 5; ++i) {
+        std::cout << std::fixed << std::setprecision(6) << verify_weights[i] << " ";
+    }
+    std::cout << std::endl;
 }
 
 Matrix Embedding::forward(const std::vector<int> &input_tokens)
