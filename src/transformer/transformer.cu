@@ -46,13 +46,37 @@ Transformer::Transformer(size_t input_vocab_size, size_t target_vocab_size,size_
 
 Matrix Transformer::encode(const std::vector<int> &input_tokens)
 {
+    std::cout << "[ENCODER] Starting encode with " << input_tokens.size() << " tokens" << std::endl;
+    
     // Get embeddings
     Matrix embeddings = input_embedding.forward(input_tokens);
+
+    // DEBUG: Check if embeddings are non-zero
+    std::vector<float> embed_check(std::min(20, embeddings.getRows() * embeddings.getCols()));
+    embeddings.copyToHost(embed_check);
+    
+    float embed_sum = 0.0f;
+    int non_zero_embeds = 0;
+    for (int i = 0; i < embed_check.size(); ++i) {
+        if (abs(embed_check[i]) > 1e-6f) {
+            non_zero_embeds++;
+            embed_sum += embed_check[i];
+        }
+    }
+    
+    std::cout << "[ENCODER] Embeddings stats: " << non_zero_embeds << "/" << embed_check.size() 
+              << " non-zero, sum=" << embed_sum << std::endl;
+    
+    if (non_zero_embeds == 0) {
+        std::cout << "[ENCODER] CRITICAL ERROR: All embeddings are zero!" << std::endl;
+        return embeddings; // Return zeros - this will explain the loss problem
+    }
 
     // Scale embeddings
     std::vector<float> embed_data;
     embeddings.copyToHost(embed_data);
     float scale = sqrt(d_model);
+    std::cout << "[ENCODER] Scaling embeddings by " << scale << std::endl;
     for (auto &val : embed_data)
     {
         val *= scale;
@@ -63,27 +87,92 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
     Matrix pos_enc = pos_encoding.getEncoding(input_tokens.size());
     Matrix encoder_input = embeddings.add(pos_enc);
 
+    // DEBUG: Check encoder input after adding positional encoding
+    std::vector<float> enc_input_check(std::min(20, encoder_input.getRows() * encoder_input.getCols()));
+    encoder_input.copyToHost(enc_input_check);
+    
+    float enc_input_sum = 0.0f;
+    int non_zero_inputs = 0;
+    for (int i = 0; i < enc_input_check.size(); ++i) {
+        if (abs(enc_input_check[i]) > 1e-6f) {
+            non_zero_inputs++;
+            enc_input_sum += enc_input_check[i];
+        }
+    }
+    
+    std::cout << "[ENCODER] After pos encoding: " << non_zero_inputs << "/" << enc_input_check.size() 
+              << " non-zero, sum=" << enc_input_sum << std::endl;
+
     // Pass through encoder layers (REAL IMPLEMENTATION)
     Matrix current_output = encoder_input; // Start with input
     
     // Pass through each encoder layer
-    for (auto& layer : encoder_layers) {
-        current_output = layer.forward(current_output); // No src_mask for now
+    for (size_t layer_idx = 0; layer_idx < encoder_layers.size(); ++layer_idx) {
+        std::cout << "[ENCODER] Processing layer " << layer_idx << std::endl;
+        
+        Matrix layer_output = encoder_layers[layer_idx].forward(current_output); // No src_mask for now
+        
+        // DEBUG: Check each layer's output
+        std::vector<float> layer_check(std::min(10, layer_output.getRows() * layer_output.getCols()));
+        layer_output.copyToHost(layer_check);
+        
+        float layer_sum = 0.0f;
+        int non_zero_layer = 0;
+        for (int i = 0; i < layer_check.size(); ++i) {
+            if (abs(layer_check[i]) > 1e-6f) {
+                non_zero_layer++;
+                layer_sum += layer_check[i];
+            }
+        }
+        
+        std::cout << "[ENCODER] Layer " << layer_idx << " output: " << non_zero_layer << "/" << layer_check.size() 
+                  << " non-zero, sum=" << layer_sum << std::endl;
+        
+        if (non_zero_layer == 0) {
+            std::cout << "[ENCODER] CRITICAL: Layer " << layer_idx << " produced all zeros!" << std::endl;
+        }
+        
+        current_output = layer_output;
     }
 
+    std::cout << "[ENCODER] Encoding complete" << std::endl;
     return current_output;
 }
 
 Matrix Transformer::decode(const std::vector<int> &target_tokens,
                            const Matrix &encoder_output)
 {
+    std::cout << "[DECODER] Starting decode with " << target_tokens.size() << " tokens" << std::endl;
+    
     // Get target embeddings
     Matrix embeddings = target_embedding.forward(target_tokens);
+
+    // DEBUG: Check target embeddings
+    std::vector<float> target_embed_check(std::min(20, embeddings.getRows() * embeddings.getCols()));
+    embeddings.copyToHost(target_embed_check);
+    
+    float target_embed_sum = 0.0f;
+    int non_zero_target_embeds = 0;
+    for (int i = 0; i < target_embed_check.size(); ++i) {
+        if (abs(target_embed_check[i]) > 1e-6f) {
+            non_zero_target_embeds++;
+            target_embed_sum += target_embed_check[i];
+        }
+    }
+    
+    std::cout << "[DECODER] Target embeddings stats: " << non_zero_target_embeds << "/" << target_embed_check.size() 
+              << " non-zero, sum=" << target_embed_sum << std::endl;
+    
+    if (non_zero_target_embeds == 0) {
+        std::cout << "[DECODER] CRITICAL ERROR: All target embeddings are zero!" << std::endl;
+        return embeddings; // Return zeros
+    }
 
     // Scale embeddings
     std::vector<float> embed_data;
     embeddings.copyToHost(embed_data);
     float scale = sqrt(d_model);
+    std::cout << "[DECODER] Scaling target embeddings by " << scale << std::endl;
     for (auto &val : embed_data)
     {
         val *= scale;
@@ -94,16 +183,57 @@ Matrix Transformer::decode(const std::vector<int> &target_tokens,
     Matrix pos_enc = pos_encoding.getEncoding(target_tokens.size());
     Matrix decoder_input = embeddings.add(pos_enc);
 
+    // DEBUG: Check decoder input after positional encoding
+    std::vector<float> dec_input_check(std::min(20, decoder_input.getRows() * decoder_input.getCols()));
+    decoder_input.copyToHost(dec_input_check);
+    
+    float dec_input_sum = 0.0f;
+    int non_zero_dec_inputs = 0;
+    for (int i = 0; i < dec_input_check.size(); ++i) {
+        if (abs(dec_input_check[i]) > 1e-6f) {
+            non_zero_dec_inputs++;
+            dec_input_sum += dec_input_check[i];
+        }
+    }
+    
+    std::cout << "[DECODER] After pos encoding: " << non_zero_dec_inputs << "/" << dec_input_check.size() 
+              << " non-zero, sum=" << dec_input_sum << std::endl;
+
     // Pass through decoder layers (REAL IMPLEMENTATION)
     Matrix current_output = decoder_input;
     
     // Create causal mask for target sequence
     Matrix target_mask = createCausalMask(target_tokens.size());
     
-    for (size_t i = 0; i < n_layers; ++i) {
-        current_output = decoder_layers[i].forward(current_output, encoder_output, target_mask);
+    for (size_t layer_idx = 0; layer_idx < n_layers; ++layer_idx) {
+        std::cout << "[DECODER] Processing layer " << layer_idx << std::endl;
+        
+        Matrix layer_output = decoder_layers[layer_idx].forward(current_output, encoder_output, target_mask);
+        
+        // DEBUG: Check each decoder layer's output
+        std::vector<float> dec_layer_check(std::min(10, layer_output.getRows() * layer_output.getCols()));
+        layer_output.copyToHost(dec_layer_check);
+        
+        float dec_layer_sum = 0.0f;
+        int non_zero_dec_layer = 0;
+        for (int i = 0; i < dec_layer_check.size(); ++i) {
+            if (abs(dec_layer_check[i]) > 1e-6f) {
+                non_zero_dec_layer++;
+                dec_layer_sum += dec_layer_check[i];
+            }
+        }
+        
+        std::cout << "[DECODER] Layer " << layer_idx << " output: " << non_zero_dec_layer << "/" << dec_layer_check.size() 
+                  << " non-zero, sum=" << dec_layer_sum << std::endl;
+        
+        if (non_zero_dec_layer == 0) {
+            std::cout << "[DECODER] CRITICAL: Decoder layer " << layer_idx << " produced all zeros!" << std::endl;
+        }
+        
+        current_output = layer_output;
     }
 
+    std::cout << "[DECODER] Decoding complete" << std::endl;
     return current_output;
 }
 
