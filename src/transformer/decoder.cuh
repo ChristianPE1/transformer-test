@@ -2,7 +2,7 @@
 #ifndef DECODER_H
 #define DECODER_H
 
-#include "common.cuh"
+#include "../include/common.cuh"
 #include "attention.cuh"
 #include "../layers/feed_forward.cuh"
 #include "../layers/layer_norm.cuh"

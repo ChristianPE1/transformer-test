@@ -8,23 +8,23 @@
 #include "../utils/matrix.cuh"
 #include "../layers/linear.cuh"
 
-// Forward declarations para evitar dependencias circulares
-class EncoderLayer;
-class DecoderLayer;
-class Linear;
-
 class Transformer
 {
 private:
     Embedding input_embedding;
     Embedding target_embedding;
     PositionalEncoding pos_encoding;
-    Encoder encoder;
-    std::vector<DecoderLayer> decoder_layers;
     Linear output_projection;
     
+    // Transformer layers
+    std::vector<EncoderLayer> encoder_layers;
+    std::vector<DecoderLayer> decoder_layers;
+    
+    // Architecture parameters
     size_t d_model;
     size_t n_layers;
+    size_t n_heads;
+    size_t d_ff;
     size_t input_vocab_size;
     size_t target_vocab_size;
     
@@ -36,6 +36,7 @@ public:
                 size_t d_model = 512, size_t n_heads = 8,
                 size_t n_layers = 6, size_t d_ff = 2048);    Matrix encode(const std::vector<int> &input_tokens);
     Matrix decode(const std::vector<int> &target_tokens, const Matrix &encoder_output);
+    Matrix applyCrossAttention(const Matrix& decoder_input, const Matrix& encoder_output);
     Matrix createCausalMask(int seq_len);
     Matrix forward(const std::vector<int> &source_tokens, const std::vector<int> &target_tokens);
     std::vector<int> generate(const std::vector<int> &source_tokens,

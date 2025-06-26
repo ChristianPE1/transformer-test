@@ -1,11 +1,11 @@
 #pragma once
-//#ifndef ENCODER_H
-//#define ENCODER_H
+#ifndef ENCODER_H
+#define ENCODER_H
 
-#include "common.cuh"
+#include "../include/common.cuh"
 #include "attention.cuh"
-#include "layers/feed_forward.cuh"
-#include "layers/layer_norm.cuh"
+#include "../layers/feed_forward.cuh"
+#include "../layers/layer_norm.cuh"
 #include <vector>
 
 class EncoderLayer {

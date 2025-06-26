@@ -1,6 +1,9 @@
 #include "transformer.cuh"
 #include "embeddings.cuh"
+#include "encoder.cuh"
+#include "decoder.cuh"
 #include "../utils/matrix.cuh"
+#include "../layers/linear.cuh"
 #include <iostream>
 #include <iomanip>
 #include <cmath>
