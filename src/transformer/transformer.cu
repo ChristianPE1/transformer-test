@@ -164,14 +164,60 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
     // Encode source sequence
     Matrix encoder_output = encode(source_tokens);
     std::cout << "[DEBUG] Encode OK - shape: " << encoder_output.getRows() << "x" << encoder_output.getCols() << std::endl;
+    
+    // DEBUG: Check encoder output values
+    std::vector<float> enc_sample;
+    encoder_output.copyToHost(enc_sample);
+    if (!enc_sample.empty()) {
+        std::cout << "[DEBUG] Encoder sample values: ";
+        for (int i = 0; i < std::min(5, (int)enc_sample.size()); ++i) {
+            std::cout << std::fixed << std::setprecision(3) << enc_sample[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Decode target sequence
     Matrix decoder_output = decode(target_tokens, encoder_output);
     std::cout << "[DEBUG] Decode OK - shape: " << decoder_output.getRows() << "x" << decoder_output.getCols() << std::endl;
     
+    // DEBUG: Check decoder output values
+    std::vector<float> dec_sample;
+    decoder_output.copyToHost(dec_sample);
+    if (!dec_sample.empty()) {
+        std::cout << "[DEBUG] Decoder sample values: ";
+        for (int i = 0; i < std::min(5, (int)dec_sample.size()); ++i) {
+            std::cout << std::fixed << std::setprecision(3) << dec_sample[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    
     // Project to vocabulary space
     Matrix output = output_projection.forward(decoder_output);
     std::cout << "[DEBUG] Output projection - shape: " << output.getRows() << "x" << output.getCols() << std::endl;
+    
+    // DEBUG: Check final output values
+    std::vector<float> out_sample;
+    output.copyToHost(out_sample);
+    if (!out_sample.empty()) {
+        std::cout << "[DEBUG] Output sample values: ";
+        for (int i = 0; i < std::min(5, (int)out_sample.size()); ++i) {
+            std::cout << std::fixed << std::setprecision(3) << out_sample[i] << " ";
+        }
+        std::cout << std::endl;
+        
+        // Check if all values are the same (indicating a problem)
+        bool all_same = true;
+        float first_val = out_sample[0];
+        for (int i = 1; i < std::min(20, (int)out_sample.size()); ++i) {
+            if (abs(out_sample[i] - first_val) > 1e-6) {
+                all_same = false;
+                break;
+            }
+        }
+        if (all_same) {
+            std::cout << "[WARNING] All output values are identical: " << first_val << std::endl;
+        }
+    }
     
     std::cout << "[DEBUG] Forward completed!" << std::endl;
     return output;
