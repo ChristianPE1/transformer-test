@@ -19,6 +19,7 @@ private:
     Loss& loss_fn;
     int batch_size;
     int epochs;
+    int global_step; // Track training steps for learning rate scheduling
 
     void forward_and_backward(const std::vector<int>& source, const std::vector<int>& target);
     float calculateLearningRate(int step, float current_loss);

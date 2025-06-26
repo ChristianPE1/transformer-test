@@ -75,7 +75,7 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
 }
 
 Trainer::Trainer(Transformer& model, Optimizer& optimizer, Loss& loss_fn, int batch_size, int epochs)
-    : model(model), optimizer(optimizer), loss_fn(loss_fn), batch_size(batch_size), epochs(epochs) {
+    : model(model), optimizer(optimizer), loss_fn(loss_fn), batch_size(batch_size), epochs(epochs), global_step(0) {
     // Constructor implementation
 }
 
@@ -99,6 +99,3 @@ float Trainer::calculateLearningRate(int step, float current_loss) {
     
     return base_lr;
 }
-
-// Private member to track steps
-static int global_step = 0;
