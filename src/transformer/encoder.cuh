@@ -41,4 +41,4 @@ public:
     void forward(const Matrix &input, const Matrix &src_mask, Matrix &output);
 };
 
-//#endif // ENCODER_H
+#endif // ENCODER_H
