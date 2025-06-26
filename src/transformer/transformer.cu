@@ -391,10 +391,37 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
     Matrix output = output_projection.forward(decoder_output);
     std::cout << "[DEBUG] Output projection - shape: " << output.getRows() << "x" << output.getCols() << std::endl;
     
-    // DEBUG: Check final output values
+    // DEBUG: Check final output values and fix any NaN/Inf
     std::vector<float> out_sample;
     output.copyToHost(out_sample);
     if (!out_sample.empty()) {
+        // Check for and fix NaN/Inf values
+        bool has_nan = false, has_inf = false;
+        float min_val = out_sample[0], max_val = out_sample[0];
+        
+        for (size_t i = 0; i < out_sample.size(); ++i) {
+            if (std::isnan(out_sample[i])) {
+                out_sample[i] = 0.0f;
+                has_nan = true;
+            } else if (std::isinf(out_sample[i])) {
+                out_sample[i] = (out_sample[i] > 0) ? 10.0f : -10.0f;
+                has_inf = true;
+            } else {
+                // Clamp extreme values
+                if (out_sample[i] > 50.0f) out_sample[i] = 50.0f;
+                if (out_sample[i] < -50.0f) out_sample[i] = -50.0f;
+                
+                min_val = std::min(min_val, out_sample[i]);
+                max_val = std::max(max_val, out_sample[i]);
+            }
+        }
+        
+        if (has_nan || has_inf) {
+            std::cout << "[DEBUG] FIXED NaN/Inf in output, copying back" << std::endl;
+            output.copyFromHost(out_sample);
+        }
+        
+        std::cout << "[DEBUG] Output range: [" << min_val << ", " << max_val << "]" << std::endl;
         std::cout << "[DEBUG] Output sample values: ";
         for (int i = 0; i < std::min(5, (int)out_sample.size()); ++i) {
             std::cout << std::fixed << std::setprecision(3) << out_sample[i] << " ";

@@ -158,13 +158,59 @@ void Linear::updateWeights(float learning_rate) {
     stored_grad_weights.copyToHost(h_grad_weights);
     stored_grad_bias.copyToHost(h_grad_bias);
     
+    // Check for NaN/Inf gradients and clip them
+    bool has_nan_weights = false, has_nan_bias = false;
+    float max_grad_weight = 0.0f, max_grad_bias = 0.0f;
+    
+    for (size_t i = 0; i < h_grad_weights.size(); ++i) {
+        if (std::isnan(h_grad_weights[i]) || std::isinf(h_grad_weights[i])) {
+            h_grad_weights[i] = 0.0f;
+            has_nan_weights = true;
+        } else {
+            // Clip gradients to prevent explosion
+            h_grad_weights[i] = std::max(-1.0f, std::min(1.0f, h_grad_weights[i]));
+            max_grad_weight = std::max(max_grad_weight, std::abs(h_grad_weights[i]));
+        }
+    }
+    
+    for (size_t i = 0; i < h_grad_bias.size(); ++i) {
+        if (std::isnan(h_grad_bias[i]) || std::isinf(h_grad_bias[i])) {
+            h_grad_bias[i] = 0.0f;
+            has_nan_bias = true;
+        } else {
+            // Clip bias gradients
+            h_grad_bias[i] = std::max(-1.0f, std::min(1.0f, h_grad_bias[i]));
+            max_grad_bias = std::max(max_grad_bias, std::abs(h_grad_bias[i]));
+        }
+    }
+    
+    if (has_nan_weights || has_nan_bias) {
+        std::cout << "[LINEAR] WARNING: Cleaned NaN/Inf gradients" << std::endl;
+    }
+    
+    std::cout << "[LINEAR] Max gradients - weights: " << max_grad_weight 
+              << ", bias: " << max_grad_bias << std::endl;
+    
+    // Apply gradient descent with smaller learning rate if gradients are large
+    float effective_lr = learning_rate;
+    if (max_grad_weight > 0.5f || max_grad_bias > 0.5f) {
+        effective_lr *= 0.5f; // Reduce learning rate if gradients are large
+        std::cout << "[LINEAR] Large gradients detected, reducing lr to " << effective_lr << std::endl;
+    }
+    
     // Apply gradient descent: w = w - lr * grad_w
     for (size_t i = 0; i < h_weights.size(); ++i) {
-        h_weights[i] -= learning_rate * h_grad_weights[i];
+        h_weights[i] -= effective_lr * h_grad_weights[i];
+        
+        // Clamp weights to prevent them from becoming too large
+        h_weights[i] = std::max(-2.0f, std::min(2.0f, h_weights[i]));
     }
     
     for (size_t i = 0; i < h_bias.size(); ++i) {
-        h_bias[i] -= learning_rate * h_grad_bias[i];
+        h_bias[i] -= effective_lr * h_grad_bias[i];
+        
+        // Clamp bias values
+        h_bias[i] = std::max(-1.0f, std::min(1.0f, h_bias[i]));
     }
     
     // Copy back to device
@@ -174,6 +220,8 @@ void Linear::updateWeights(float learning_rate) {
     // Clear stored gradients
     stored_grad_weights = Matrix(0, 0);
     stored_grad_bias = Matrix(0, 0);
+    
+    std::cout << "[LINEAR] Weights updated" << std::endl;
 }
 
 // Constructor
@@ -190,18 +238,31 @@ Linear::~Linear() {
 
 // Initialize weights and bias
 void Linear::initialize() {
-    // Initialize weights with He initialization (better for ReLU-like activations)
+    // Initialize weights with Xavier/Glorot initialization (better for final layer)
     std::vector<float> weight_data(input_dim * output_dim);
     std::vector<float> bias_data(output_dim, 0.0f); // Initialize bias to zero
     
-    float scale = sqrt(2.0f / input_dim); // He initialization (better than Xavier for this case)
+    // Use Xavier initialization - more conservative for final layers
+    float scale = sqrt(1.0f / input_dim); // Conservative initialization
+    
+    // Clip scale to prevent extreme values
+    scale = std::min(scale, 0.1f); // Maximum scale of 0.1
     
     // Random initialization for weights
     srand(time(nullptr)); // Seed for reproducibility
     for (size_t i = 0; i < weight_data.size(); ++i) {
-        weight_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * scale;
+        // Generate random value in range [-scale, scale]
+        float rand_val = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * scale;
+        
+        // Clamp to prevent extreme values
+        rand_val = std::max(-0.1f, std::min(0.1f, rand_val));
+        
+        weight_data[i] = rand_val;
     }
     
+    std::cout << "[LINEAR] Initialized " << input_dim << "x" << output_dim 
+              << " with scale=" << scale << std::endl;
+              
     weights.copyFromHost(weight_data);
     bias.copyFromHost(bias_data);
 }
