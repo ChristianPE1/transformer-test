@@ -24,24 +24,29 @@ __global__ void initEmbeddingsKernel(float *embeddings, int vocab_size, int d_mo
 __global__ void embedLookupKernel(float *embeddings, int *input_ids, float *output,
                                   int vocab_size, int d_model, int seq_len)
 {
-    int token_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int dim_idx = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (token_idx < seq_len && dim_idx < d_model)
+    // SIMPLIFIED KERNEL - More compatible, single thread per element
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_elements = seq_len * d_model;
+    
+    if (idx < total_elements)
     {
-        int token_id = input_ids[token_idx];
-        if (token_id >= 0 && token_id < vocab_size)
+        int token_idx = idx / d_model;  // Which token
+        int dim_idx = idx % d_model;    // Which dimension
+        
+        if (token_idx < seq_len && dim_idx < d_model)
         {
-            // FIXED: Correct indexing for embedding lookup
-            int embedding_idx = token_id * d_model + dim_idx;
-            int output_idx = token_idx * d_model + dim_idx;
-            output[output_idx] = embeddings[embedding_idx];
-        }
-        else
-        {
-            // Handle out-of-bounds tokens with zero
-            int output_idx = token_idx * d_model + dim_idx;
-            output[output_idx] = 0.0f;
+            int token_id = input_ids[token_idx];
+            if (token_id >= 0 && token_id < vocab_size)
+            {
+                // Direct lookup without complex indexing
+                int embedding_idx = token_id * d_model + dim_idx;
+                output[idx] = embeddings[embedding_idx];
+            }
+            else
+            {
+                // Handle invalid tokens
+                output[idx] = 0.0f;
+            }
         }
     }
 }
@@ -107,25 +112,23 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
     cudaMalloc(&d_input_ids, seq_len * sizeof(int));
     cudaMemcpy(d_input_ids, input_tokens.data(), seq_len * sizeof(int), cudaMemcpyHostToDevice);
 
-    // Initialize output to zero first
-    cudaMemset(output.getData(), 0, seq_len * d_model * sizeof(float));
+    // SIMPLIFIED 1D kernel launch - more compatible
+    int total_elements = seq_len * d_model;
+    int blockSize = 256;
+    int numBlocks = (total_elements + blockSize - 1) / blockSize;
 
-    // Launch embedding lookup kernel with better grid configuration
-    dim3 blockSize(16, 8);  // Reduced block size for better occupancy
-    dim3 gridSize((seq_len + blockSize.x - 1) / blockSize.x,
-                  (d_model + blockSize.y - 1) / blockSize.y);
+    std::cout << "[EMBEDDING] Launching kernel: " << numBlocks << " blocks, " << blockSize << " threads" << std::endl;
 
-    embedLookupKernel<<<gridSize, blockSize>>>(
+    embedLookupKernel<<<numBlocks, blockSize>>>(
         weights, d_input_ids, output.getData(), vocab_size, d_model, seq_len);
 
-    cudaDeviceSynchronize();
-    
-    // Check for CUDA errors
-    cudaError_t error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        std::cout << "[EMBEDDING] CUDA Error: " << cudaGetErrorString(error) << std::endl;
+    // Check for kernel errors
+    cudaError_t cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        std::cout << "[EMBEDDING] CUDA Kernel Error: " << cudaGetErrorString(cudaStatus) << std::endl;
     }
 
+    cudaDeviceSynchronize();
     cudaFree(d_input_ids);
 
     // DEBUG: Check if embedding weights are zero
@@ -155,16 +158,11 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
 
     // DEBUG: Check specific embeddings for the input tokens
     if (!input_tokens.empty()) {
-        std::vector<float> specific_embedding(d_model);
         int first_token = input_tokens[0];
         if (first_token >= 0 && first_token < (int)vocab_size) {
-            cudaMemcpy(specific_embedding.data(), 
-                      weights + first_token * d_model, 
-                      d_model * sizeof(float), 
-                      cudaMemcpyDeviceToHost);
             std::cout << "[EMBEDDING] Token " << first_token << " embedding: ";
             for (int i = 0; i < std::min(5, (int)d_model); ++i) {
-                std::cout << std::fixed << std::setprecision(3) << specific_embedding[i] << " ";
+                std::cout << std::fixed << std::setprecision(3) << host_weights[first_token * d_model + i] << " ";
             }
             std::cout << std::endl;
         }
