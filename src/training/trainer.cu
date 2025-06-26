@@ -42,13 +42,17 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
             double loss = loss_fn.forward(output, target);
             std::cout << " Loss: " << std::fixed << std::setprecision(3) << loss << std::flush;
             
+            // Calculate adaptive learning rate
+            float current_lr = calculateLearningRate(global_step, loss);
+            global_step++;
+            
             // 3. Backward pass - USAR EL NUEVO SISTEMA
             Matrix grad = loss_fn.backward(output, target);
             
             // BACKWARD PASS COMPLETO DEL TRANSFORMER
-            model.backward(grad, optimizer.getLearningRate());
+            model.backward(grad, current_lr);  // Use adaptive learning rate
             
-            std::cout << "[UPDATE] Gradientes aplicados con lr=" << optimizer.getLearningRate();
+            std::cout << "[UPDATE] Gradientes aplicados con lr=" << std::fixed << std::setprecision(8) << current_lr;
             
             std::cout << " [Updated]" << std::endl;
             
@@ -74,3 +78,27 @@ Trainer::Trainer(Transformer& model, Optimizer& optimizer, Loss& loss_fn, int ba
     : model(model), optimizer(optimizer), loss_fn(loss_fn), batch_size(batch_size), epochs(epochs) {
     // Constructor implementation
 }
+
+float Trainer::calculateLearningRate(int step, float current_loss) {
+    float base_lr = optimizer.getLearningRate();
+    
+    // Warm-up for first 50 steps
+    if (step < 50) {
+        float warmup_factor = (float)(step + 1) / 50.0f; // +1 to avoid lr=0 at step 0
+        return base_lr * warmup_factor;
+    }
+    
+    // If loss is stuck (not decreasing), increase learning rate
+    if (step > 0 && step % 10 == 0) {
+        static float last_loss = current_loss;
+        if (current_loss >= last_loss - 0.01f) { // Loss not decreasing significantly
+            return base_lr * 1.5f; // Increase by 50%
+        }
+        last_loss = current_loss;
+    }
+    
+    return base_lr;
+}
+
+// Private member to track steps
+static int global_step = 0;

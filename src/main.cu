@@ -118,8 +118,8 @@ int main()
             
             // Configuración de entrenamiento
             int epochs = 10;  // Más épocas para mejor aprendizaje
-            int batch_size = 16;  // Batch más pequeño para updates más frecuentes
-            float learning_rate = 0.001f;  // Learning rate más conservador para evitar NaN
+            int batch_size = 8;   // Batch más pequeño para updates más frecuentes
+            float learning_rate = 0.01f;  // Learning rate más alto para mejor convergencia
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -128,7 +128,7 @@ int main()
             
             // Crear componentes de entrenamiento
             CrossEntropyLoss loss_fn;
-            SGD optimizer(learning_rate);
+            SGD optimizer(learning_rate, 0.9f);  // Added momentum = 0.9
             Trainer trainer(transformer, optimizer, loss_fn, batch_size, epochs);
             
             // Bucle de entrenamiento

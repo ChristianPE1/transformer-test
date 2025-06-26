@@ -17,8 +17,14 @@ protected:
 
 class SGD : public Optimizer {
 public:
-    SGD(float learning_rate);
+    SGD(float learning_rate, float momentum_factor = 0.9f);
+    ~SGD();
     void step(float* params, float* grads, size_t size) override;
+
+private:
+    float momentum_factor;
+    float* momentum_buffer;
+    size_t buffer_size;
 };
 
 class Adam : public Optimizer {

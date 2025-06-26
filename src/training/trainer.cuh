@@ -21,6 +21,7 @@ private:
     int epochs;
 
     void forward_and_backward(const std::vector<int>& source, const std::vector<int>& target);
+    float calculateLearningRate(int step, float current_loss);
 };
 
 #endif // TRAINER_CUH

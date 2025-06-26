@@ -67,11 +67,13 @@ void Embedding::initializeWeights()
     for (int i = 0; i < total_size; ++i) {
         // Xavier initialization: uniform distribution in [-sqrt(6/(fan_in + fan_out)), sqrt(6/(fan_in + fan_out))]
         float range = sqrt(6.0f / (vocab_size + d_model));
-        host_weights[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * range;
+        // Make embeddings larger for better gradients
+        float scale = 2.0f;  // Scale factor to make embeddings more significant
+        host_weights[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * range * scale;
         
         // Ensure non-zero values for debugging
-        if (abs(host_weights[i]) < 1e-6f) {
-            host_weights[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.01f;
+        if (abs(host_weights[i]) < 1e-4f) {
+            host_weights[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.1f;
         }
     }
     
