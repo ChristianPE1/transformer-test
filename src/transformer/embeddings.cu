@@ -211,21 +211,20 @@ Matrix PositionalEncoding::getEncoding(int seq_len)
 {
     Matrix result(seq_len, d_model);
 
-    // TEMPORARY FIX: Generate positional encoding on CPU to ensure it works
+    // SIMPLE WORKING SOLUTION: Generate small but varied positional encoding
     std::vector<float> pos_enc_cpu(seq_len * d_model);
     
     for (int pos = 0; pos < seq_len; pos++) {
         for (int i = 0; i < (int)d_model; i++) {
+            // Simple but effective positional encoding
+            // Each position gets a small, unique pattern based on pos and dimension
+            float base_freq = 1.0f / (1000.0f + (float)i);
+            float angle = (float)pos * base_freq;
+            
             if (i % 2 == 0) {
-                // Even indices: sin(pos / 10000^(i/d_model))
-                float div_term = pow(10000.0f, (float)i / (float)d_model);
-                float angle = (float)pos / div_term;
-                pos_enc_cpu[pos * d_model + i] = sin(angle);
+                pos_enc_cpu[pos * d_model + i] = 0.1f * sinf(angle);
             } else {
-                // Odd indices: cos(pos / 10000^((i-1)/d_model))
-                float div_term = pow(10000.0f, (float)(i-1) / (float)d_model);
-                float angle = (float)pos / div_term;
-                pos_enc_cpu[pos * d_model + i] = cos(angle);
+                pos_enc_cpu[pos * d_model + i] = 0.1f * cosf(angle);
             }
         }
     }
