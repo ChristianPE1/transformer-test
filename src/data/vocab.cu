@@ -44,8 +44,8 @@ void Vocab::buildFromSentences(const std::vector<std::string> &sentences)
     int next_id = 4; // Start after special tokens
     for (const auto &[word, count] : sorted_words)
     {
-        if (count >= 10 && next_id < 1000)
-        { // Only include top 1000 words by frequency
+        if (count >= 3 && next_id < 2000)
+        { // Reduced min frequency from 10 to 3, increased vocab size to 2000
             word_to_id[word] = next_id;
             id_to_word[next_id] = word;
             next_id++;

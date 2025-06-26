@@ -493,12 +493,24 @@ int sos_token, int eos_token, size_t max_length)
                 score += 2.0f; // Boost moderado para EOS cuando debería terminar
             }
             
-            // 4. Penalizar tokens muy recientes (evitar repeticiones)
-            for (int i = std::max(0, (int)generated.size() - 3); i < generated.size(); i++) {
+            // 4. Penalizar tokens muy recientes (evitar repeticiones) - MEJORADO
+            int repetition_penalty_applied = 0;
+            for (int i = std::max(0, (int)generated.size() - 4); i < generated.size(); i++) {
                 if (generated[i] == v) {
-                    score -= 2.0f; // Penaliza repeticiones
-                    break;
+                    float distance_penalty = 4.0f - (generated.size() - 1 - i); // Penaliza más las repeticiones recientes
+                    score -= distance_penalty;
+                    repetition_penalty_applied++;
                 }
+            }
+            
+            // Penalización extra por múltiples repeticiones del mismo token
+            if (repetition_penalty_applied > 1) {
+                score -= repetition_penalty_applied * 2.0f;
+            }
+            
+            // 5. Penalizar <unk> tokens para forzar el uso de palabras conocidas
+            if (v == 1) { // Token <unk>
+                score -= 1.5f;
             }
             
             candidates.push_back({score, v});
