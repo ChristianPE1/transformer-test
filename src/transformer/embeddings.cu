@@ -186,27 +186,6 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
     return output;
 }
 
-// Add after existing Embedding code
-
-__global__ void initPositionalEncodingKernel(float *pos_enc, int d_model, int max_len)
-{
-    int pos = blockIdx.x * blockDim.x + threadIdx.x;
-    int i = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (pos < max_len && i < d_model)
-    {
-        float angle = pos / powf(10000.0f, (2.0f * (i / 2)) / d_model);
-        if (i % 2 == 0)
-        {
-            pos_enc[pos * d_model + i] = sinf(angle);
-        }
-        else
-        {
-            pos_enc[pos * d_model + i] = cosf(angle);
-        }
-    }
-}
-
 PositionalEncoding::PositionalEncoding(size_t d_model, size_t max_len)
     : d_model(d_model), max_len(max_len)
 {
