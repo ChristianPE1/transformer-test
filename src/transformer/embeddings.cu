@@ -10,43 +10,22 @@
 #include <cstdlib>
 #include <ctime>
 
-__global__ void initEmbeddingsKernel(float *embeddings, int vocab_size, int d_model, unsigned long seed)
+// Simple kernel for positional encoding (keeping only this one for now)
+__global__ void initPositionalEncodingKernel(float *pos_enc, int d_model, int max_len)
 {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < vocab_size * d_model)
-    {
-        curandState state;
-        curand_init(seed, idx, 0, &state);
-        embeddings[idx] = curand_normal(&state) * 0.1f; // Xavier-like initialization
-    }
-}
+    int pos = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
 
-__global__ void embedLookupKernel(float *embeddings, int *input_ids, float *output,
-                                  int vocab_size, int d_model, int seq_len)
-{
-    // SIMPLIFIED KERNEL - More compatible, single thread per element
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_elements = seq_len * d_model;
-    
-    if (idx < total_elements)
+    if (pos < max_len && i < d_model)
     {
-        int token_idx = idx / d_model;  // Which token
-        int dim_idx = idx % d_model;    // Which dimension
-        
-        if (token_idx < seq_len && dim_idx < d_model)
+        float angle = pos / powf(10000.0f, (2.0f * (i / 2)) / d_model);
+        if (i % 2 == 0)
         {
-            int token_id = input_ids[token_idx];
-            if (token_id >= 0 && token_id < vocab_size)
-            {
-                // Direct lookup without complex indexing
-                int embedding_idx = token_id * d_model + dim_idx;
-                output[idx] = embeddings[embedding_idx];
-            }
-            else
-            {
-                // Handle invalid tokens
-                output[idx] = 0.0f;
-            }
+            pos_enc[pos * d_model + i] = sinf(angle);
+        }
+        else
+        {
+            pos_enc[pos * d_model + i] = cosf(angle);
         }
     }
 }
@@ -107,68 +86,98 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
     int seq_len = input_tokens.size();
     Matrix output(seq_len, d_model);
 
-    // Copy input tokens to device
-    int *d_input_ids;
-    cudaMalloc(&d_input_ids, seq_len * sizeof(int));
-    cudaMemcpy(d_input_ids, input_tokens.data(), seq_len * sizeof(int), cudaMemcpyHostToDevice);
-
-    // SIMPLIFIED 1D kernel launch - more compatible
-    int total_elements = seq_len * d_model;
-    int blockSize = 256;
-    int numBlocks = (total_elements + blockSize - 1) / blockSize;
-
-    std::cout << "[EMBEDDING] Launching kernel: " << numBlocks << " blocks, " << blockSize << " threads" << std::endl;
-
-    embedLookupKernel<<<numBlocks, blockSize>>>(
-        weights, d_input_ids, output.getData(), vocab_size, d_model, seq_len);
-
-    // Check for kernel errors
-    cudaError_t cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        std::cout << "[EMBEDDING] CUDA Kernel Error: " << cudaGetErrorString(cudaStatus) << std::endl;
-    }
-
-    cudaDeviceSynchronize();
-    cudaFree(d_input_ids);
-
-    // DEBUG: Check if embedding weights are zero
+    std::cout << "[EMBEDDING] Using pure CUDA memory approach (no kernels)" << std::endl;
+    
+    // DEBUG: Verify weights are initialized
     std::vector<float> sample_weights(10);
     cudaMemcpy(sample_weights.data(), weights, 10 * sizeof(float), cudaMemcpyDeviceToHost);
-    std::cout << "[EMBEDDING] Sample weights: ";
+    std::cout << "[EMBEDDING] Sample weights BEFORE lookup: ";
     for (int i = 0; i < 5; ++i) {
-        std::cout << std::fixed << std::setprecision(3) << sample_weights[i] << " ";
+        std::cout << std::fixed << std::setprecision(6) << sample_weights[i] << " ";
     }
     std::cout << std::endl;
+    
+    // Check CUDA error after weight check
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        std::cout << "[EMBEDDING] CUDA Error after weight check: " << cudaGetErrorString(err) << std::endl;
+    }
+    
+    // Initialize output to zero using standard CUDA
+    cudaMemset(output.getData(), 0, seq_len * d_model * sizeof(float));
+    
+    // Copy embeddings row by row using only cudaMemcpy (most compatible)
+    for (int i = 0; i < seq_len; ++i) {
+        int token_id = input_tokens[i];
+        if (token_id >= 0 && token_id < (int)vocab_size) {
+            // Calculate source and destination pointers
+            float* src = weights + token_id * d_model;
+            float* dst = output.getData() + i * d_model;
+            
+            // Use the most basic CUDA memory copy
+            cudaError_t copy_result = cudaMemcpy(dst, src, d_model * sizeof(float), cudaMemcpyDeviceToDevice);
+            
+            if (copy_result != cudaSuccess) {
+                std::cout << "[EMBEDDING] Copy error for token " << token_id << ": " << cudaGetErrorString(copy_result) << std::endl;
+            }
+        } else {
+            std::cout << "[EMBEDDING] WARNING: Invalid token_id " << token_id << " (vocab_size=" << vocab_size << ")" << std::endl;
+        }
+    }
+    
+    // Ensure all copies are complete
+    cudaDeviceSynchronize();
+    
+    // Check for any CUDA errors
+    err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        std::cout << "[EMBEDDING] CUDA Error after copies: " << cudaGetErrorString(err) << std::endl;
+    }
 
-    // DEBUG: Check if output is zero
-    std::vector<float> sample_output(std::min(10, (int)(seq_len * d_model)));
+    // DEBUG: Check output after lookup
+    std::vector<float> sample_output(std::min(20, (int)(seq_len * d_model)));
     output.copyToHost(sample_output);
-    std::cout << "[EMBEDDING] Sample output: ";
-    for (int i = 0; i < std::min(5, (int)sample_output.size()); ++i) {
-        std::cout << std::fixed << std::setprecision(3) << sample_output[i] << " ";
+    std::cout << "[EMBEDDING] Sample output AFTER lookup: ";
+    for (int i = 0; i < std::min(10, (int)sample_output.size()); ++i) {
+        std::cout << std::fixed << std::setprecision(6) << sample_output[i] << " ";
     }
     std::cout << std::endl;
 
-    // DEBUG: Check input tokens
+    // DEBUG: Input tokens
     std::cout << "[EMBEDDING] Input tokens: ";
     for (int i = 0; i < std::min(5, seq_len); ++i) {
         std::cout << input_tokens[i] << " ";
     }
     std::cout << std::endl;
 
-    // DEBUG: Check specific embeddings for the input tokens
+    // Verify specific embedding was copied correctly
     if (!input_tokens.empty()) {
         int first_token = input_tokens[0];
         if (first_token >= 0 && first_token < (int)vocab_size) {
-            // Get the specific token embedding from device
-            std::vector<float> token_embedding(std::min(5, (int)d_model));
-            cudaMemcpy(token_embedding.data(), 
+            std::vector<float> original_embedding(10);
+            std::vector<float> copied_embedding(10);
+            
+            // Get original from weights
+            cudaMemcpy(original_embedding.data(), 
                       weights + first_token * d_model, 
-                      std::min(5, (int)d_model) * sizeof(float), 
+                      10 * sizeof(float), 
                       cudaMemcpyDeviceToHost);
-            std::cout << "[EMBEDDING] Token " << first_token << " embedding: ";
-            for (int i = 0; i < std::min(5, (int)d_model); ++i) {
-                std::cout << std::fixed << std::setprecision(3) << token_embedding[i] << " ";
+            
+            // Get copied from output
+            cudaMemcpy(copied_embedding.data(), 
+                      output.getData(), 
+                      10 * sizeof(float), 
+                      cudaMemcpyDeviceToHost);
+            
+            std::cout << "[EMBEDDING] Token " << first_token << " original: ";
+            for (int i = 0; i < 5; ++i) {
+                std::cout << std::fixed << std::setprecision(6) << original_embedding[i] << " ";
+            }
+            std::cout << std::endl;
+            
+            std::cout << "[EMBEDDING] Token " << first_token << " copied: ";
+            for (int i = 0; i < 5; ++i) {
+                std::cout << std::fixed << std::setprecision(6) << copied_embedding[i] << " ";
             }
             std::cout << std::endl;
         }
@@ -235,51 +244,44 @@ Matrix PositionalEncoding::getEncoding(int seq_len)
     return result;
 }
 
-__global__ void updateEmbeddingWeightsKernel(float* weights, float* gradients, 
-                                            int* tokens, float learning_rate,
-                                            int seq_len, int d_model, int vocab_size) {
-    int token_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int dim_idx = blockIdx.y * blockDim.y + threadIdx.y;
-    
-    if (token_idx < seq_len && dim_idx < d_model) {
-        int token_id = tokens[token_idx];
-        if (token_id >= 0 && token_id < vocab_size) {
-            int weight_idx = token_id * d_model + dim_idx;
-            int grad_idx = token_idx * d_model + dim_idx;
-            
-            // Aplicar gradiente con clipping para estabilidad
-            float grad_value = gradients[grad_idx];
-            
-            // Gradient clipping
-            if (grad_value > 1.0f) grad_value = 1.0f;
-            if (grad_value < -1.0f) grad_value = -1.0f;
-            
-            // Actualización con momentum implícito
-            float current_weight = weights[weight_idx];
-            float update = learning_rate * grad_value;
-            
-            // Agregar algo de momentum para suavizar actualizaciones
-            weights[weight_idx] = current_weight - update + 0.1f * update;
-        }
-    }
-}
-
 void Embedding::updateWeights(const Matrix& gradients, float learning_rate, const std::vector<int>& tokens) {
     int seq_len = tokens.size();
     
-    // Copy tokens to device
-    int *d_tokens;
-    cudaMalloc(&d_tokens, seq_len * sizeof(int));
-    cudaMemcpy(d_tokens, tokens.data(), seq_len * sizeof(int), cudaMemcpyHostToDevice);
+    std::cout << "[EMBEDDING] Updating weights for " << seq_len << " tokens with lr=" << learning_rate << std::endl;
     
-    // Update weights
-    dim3 blockSize(16, 16);
-    dim3 gridSize((seq_len + blockSize.x - 1) / blockSize.x,
-                  (d_model + blockSize.y - 1) / blockSize.y);
+    // Simple host-based weight update to ensure compatibility
+    std::vector<float> grad_data(seq_len * d_model);
+    gradients.copyToHost(grad_data);
     
-    updateEmbeddingWeightsKernel<<<gridSize, blockSize>>>(
-        weights, gradients.getData(), d_tokens, learning_rate, seq_len, d_model, vocab_size);
+    // Update weights token by token
+    for (int i = 0; i < seq_len; ++i) {
+        int token_id = tokens[i];
+        if (token_id >= 0 && token_id < (int)vocab_size) {
+            // Copy current embedding to host
+            std::vector<float> current_embedding(d_model);
+            cudaMemcpy(current_embedding.data(), 
+                      weights + token_id * d_model, 
+                      d_model * sizeof(float), 
+                      cudaMemcpyDeviceToHost);
+            
+            // Apply gradients
+            for (int j = 0; j < (int)d_model; ++j) {
+                float grad = grad_data[i * d_model + j];
+                // Gradient clipping
+                if (grad > 1.0f) grad = 1.0f;
+                if (grad < -1.0f) grad = -1.0f;
+                
+                current_embedding[j] -= learning_rate * grad;
+            }
+            
+            // Copy back to device
+            cudaMemcpy(weights + token_id * d_model,
+                      current_embedding.data(),
+                      d_model * sizeof(float),
+                      cudaMemcpyHostToDevice);
+        }
+    }
     
     cudaDeviceSynchronize();
-    cudaFree(d_tokens);
+    std::cout << "[EMBEDDING] Weight update completed" << std::endl;
 }
