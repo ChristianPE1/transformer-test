@@ -49,16 +49,29 @@ Matrix Linear::forward(const Matrix &input) {
     for (int i = 0; i < std::min(5, (int)debug_bias.size()); i++) printf("%.6f ", debug_bias[i]);
     printf("\n");
 
-    const float *d_input = input.getData();
-    const float *d_weights = weights.getData();
-    const float *d_bias = bias.getData();
+    // Use CPU implementation to fix the problem
+    std::vector<float> h_input(batch_size * input_dim);
+    std::vector<float> h_weights(input_dim * output_dim);
+    std::vector<float> h_bias(output_dim);
+    std::vector<float> h_output(batch_size * output_dim, 0.0f);
+
+    cudaMemcpy(h_input.data(), input.getData(), batch_size * input_dim * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_weights.data(), weights.getData(), input_dim * output_dim * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_bias.data(), bias.getData(), output_dim * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // CPU matrix multiplication: output = input * weights + bias
+    for (int b = 0; b < batch_size; b++) {
+        for (int o = 0; o < output_dim; o++) {
+            float sum = 0.0f;
+            for (int i = 0; i < input_dim; i++) {
+                sum += h_input[b * input_dim + i] * h_weights[i * output_dim + o];
+            }
+            h_output[b * output_dim + o] = sum + h_bias[o];
+        }
+    }
 
     Matrix output(batch_size, output_dim);
-    float *d_output = output.getData();
-
-    linear_forward_kernel<<<batch_size, output_dim>>>(d_input, d_weights, d_bias, d_output, input_dim, output_dim, batch_size);
-
-    cudaDeviceSynchronize();
+    cudaMemcpy(output.getData(), h_output.data(), batch_size * output_dim * sizeof(float), cudaMemcpyHostToDevice);
     
     // DEBUG: Check output
     std::vector<float> debug_output(std::min(100, batch_size * output_dim));
