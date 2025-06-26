@@ -24,6 +24,31 @@ Matrix Linear::forward(const Matrix &input) {
     int input_dim = input.getCols();
     int output_dim = weights.getCols();
 
+    // DEBUG: Check input and weights
+    std::vector<float> debug_input(std::min(100, batch_size * input_dim));
+    std::vector<float> debug_weights(std::min(100, input_dim * output_dim));
+    std::vector<float> debug_bias(std::min(10, output_dim));
+    
+    cudaMemcpy(debug_input.data(), input.getData(), debug_input.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(debug_weights.data(), weights.getData(), debug_weights.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(debug_bias.data(), bias.getData(), debug_bias.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    int non_zero_input = 0, non_zero_weights = 0, non_zero_bias = 0;
+    for (int i = 0; i < debug_input.size(); i++) if (abs(debug_input[i]) > 1e-8f) non_zero_input++;
+    for (int i = 0; i < debug_weights.size(); i++) if (abs(debug_weights[i]) > 1e-8f) non_zero_weights++;
+    for (int i = 0; i < debug_bias.size(); i++) if (abs(debug_bias[i]) > 1e-8f) non_zero_bias++;
+    
+    printf("[LINEAR] Forward %dx%d -> %dx%d\n", batch_size, input_dim, batch_size, output_dim);
+    printf("[LINEAR] Input: %d/%d non-zero, first 5: ", non_zero_input, (int)debug_input.size());
+    for (int i = 0; i < std::min(5, (int)debug_input.size()); i++) printf("%.6f ", debug_input[i]);
+    printf("\n");
+    printf("[LINEAR] Weights: %d/%d non-zero, first 5: ", non_zero_weights, (int)debug_weights.size());
+    for (int i = 0; i < std::min(5, (int)debug_weights.size()); i++) printf("%.6f ", debug_weights[i]);
+    printf("\n");
+    printf("[LINEAR] Bias: %d/%d non-zero, first 5: ", non_zero_bias, (int)debug_bias.size());
+    for (int i = 0; i < std::min(5, (int)debug_bias.size()); i++) printf("%.6f ", debug_bias[i]);
+    printf("\n");
+
     const float *d_input = input.getData();
     const float *d_weights = weights.getData();
     const float *d_bias = bias.getData();
@@ -34,6 +59,18 @@ Matrix Linear::forward(const Matrix &input) {
     linear_forward_kernel<<<batch_size, output_dim>>>(d_input, d_weights, d_bias, d_output, input_dim, output_dim, batch_size);
 
     cudaDeviceSynchronize();
+    
+    // DEBUG: Check output
+    std::vector<float> debug_output(std::min(100, batch_size * output_dim));
+    cudaMemcpy(debug_output.data(), output.getData(), debug_output.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    int non_zero_output = 0;
+    for (int i = 0; i < debug_output.size(); i++) if (abs(debug_output[i]) > 1e-8f) non_zero_output++;
+    
+    printf("[LINEAR] Output: %d/%d non-zero, first 5: ", non_zero_output, (int)debug_output.size());
+    for (int i = 0; i < std::min(5, (int)debug_output.size()); i++) printf("%.6f ", debug_output[i]);
+    printf("\n");
+    
     return output;
 }
 
