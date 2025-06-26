@@ -20,18 +20,19 @@ __global__ void initPositionalEncodingKernel(float *pos_enc, int d_model, int ma
     {
         // Correct positional encoding formula: PE(pos, 2i) = sin(pos/10000^(2i/d_model))
         // PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
-        int pair_idx = i / 2;  // Which sine/cosine pair this dimension belongs to
-        float div_term = powf(10000.0f, (2.0f * pair_idx) / (float)d_model);
-        float angle = (float)pos / div_term;
         
         if (i % 2 == 0)
         {
-            // Even dimensions get sine
+            // Even dimensions get sine: use i directly
+            float div_term = powf(10000.0f, (float)i / (float)d_model);
+            float angle = (float)pos / div_term;
             pos_enc[pos * d_model + i] = sinf(angle);
         }
         else
         {
-            // Odd dimensions get cosine
+            // Odd dimensions get cosine: use (i-1) to pair with previous even dimension
+            float div_term = powf(10000.0f, (float)(i-1) / (float)d_model);
+            float angle = (float)pos / div_term;
             pos_enc[pos * d_model + i] = cosf(angle);
         }
     }
