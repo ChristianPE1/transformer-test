@@ -9,12 +9,11 @@
 #include <vector>
 
 class EncoderLayer {
-private:
+public:
     MultiHeadAttention self_attention;
     FeedForward feed_forward;
     LayerNorm norm1, norm2;
 
-public:
     EncoderLayer(size_t d_model, size_t n_heads, size_t d_ff = 2048)
         : self_attention(d_model, n_heads), 
           feed_forward(d_model, d_ff),

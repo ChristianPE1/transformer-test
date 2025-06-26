@@ -9,14 +9,13 @@
 #include <vector>
 
 class DecoderLayer {
-private:
+public:
     MultiHeadAttention masked_self_attention;
     MultiHeadAttention encoder_decoder_attention;
     FeedForward feed_forward;
     LayerNorm norm1, norm2, norm3;
     size_t d_model;
 
-public:
     DecoderLayer(size_t d_model, size_t n_heads, size_t d_ff = 2048)
         : masked_self_attention(d_model, n_heads),
           encoder_decoder_attention(d_model, n_heads),
