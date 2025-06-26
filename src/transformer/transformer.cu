@@ -476,12 +476,24 @@ int sos_token, int eos_token, size_t max_length)
                 score -= 10.0f; // Penaliza fuertemente
             }
             
-            // 2. Si ya llevamos suficientes tokens, priorizar EOS
-            if (generated.size() >= target_length && v == eos_token) {
-                score += 5.0f; // Boost fuerte para EOS cuando debería terminar
+            // 2. PENALIZAR MUY FUERTEMENTE EOS en los primeros tokens - AUMENTADO
+            if (v == eos_token && generated.size() <= target_length) {
+                // Penalización MUY agresiva para EOS temprano
+                float penalty = 30.0f - (float)(generated.size() - 1) * 3.0f; 
+                score -= std::max(10.0f, penalty); // Mínimo 10.0 de penalización (doblado)
+                
+                // Penalización extra si es el primer token
+                if (generated.size() == 1) {
+                    score -= 50.0f; // Penalización masiva para EOS como primer token
+                }
             }
             
-            // 3. Penalizar tokens muy recientes (evitar repeticiones)
+            // 3. Si ya llevamos suficientes tokens, priorizar EOS moderadamente
+            if (generated.size() > target_length && v == eos_token) {
+                score += 2.0f; // Boost moderado para EOS cuando debería terminar
+            }
+            
+            // 4. Penalizar tokens muy recientes (evitar repeticiones)
             for (int i = std::max(0, (int)generated.size() - 3); i < generated.size(); i++) {
                 if (generated[i] == v) {
                     score -= 2.0f; // Penaliza repeticiones
@@ -543,8 +555,24 @@ int sos_token, int eos_token, size_t max_length)
 
         generated.push_back(best_token);
 
-        // Terminar si encontramos EOS
-        if (best_token == eos_token) {
+        // FORZAR: NO terminar si es EOS en las primeras 2 posiciones
+        if (best_token == eos_token && generated.size() <= 2) {
+            std::cout << "[GEN] WARNING: EOS predicted too early at position " << generated.size() 
+                      << ", FORCING continuation..." << std::endl;
+            generated.pop_back(); // Remover el EOS
+            
+            // Seleccionar el segundo mejor token que NO sea EOS
+            for (const auto& candidate : candidates) {
+                if (candidate.second != eos_token) {
+                    generated.push_back(candidate.second);
+                    std::cout << "[GEN] Forced token: " << candidate.second 
+                              << " (score: " << candidate.first << ")" << std::endl;
+                    break;
+                }
+            }
+        }
+        // Terminar si encontramos EOS después de posición 2
+        else if (best_token == eos_token && generated.size() > 2) {
             break;
         }
         

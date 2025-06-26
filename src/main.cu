@@ -117,7 +117,7 @@ int main()
             std::cout << "\n=== Iniciando Entrenamiento ===" << std::endl;
             
             // Configuración de entrenamiento
-            int epochs = 100;  // Más épocas ya que el progreso es lento pero constante
+            int epochs = 50;  // Prueba rápida con las mejoras implementadas
             int batch_size = 8;   // Batch más pequeño para gradientes más estables
             float learning_rate = 0.02f;  // Learning rate más alto - el modelo aprende lento pero estable
             

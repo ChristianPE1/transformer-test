@@ -38,14 +38,22 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
                 target.setElement(j, 0, target_batches[i][j]);
             }
             
-            // 2. Loss real
-            double loss = loss_fn.forward(output, target);
+            // 2. Loss con penalización por EOS temprano
+            double raw_loss = loss_fn.forward(output, target);
+            
+            // Aplicar penalización si el modelo predice EOS en posiciones tempranas
+            double eos_penalty = calculateEOSPenalty(output, target_batches[i]);
+            double final_loss = raw_loss + eos_penalty;
+            
+            if (eos_penalty > 0.0) {
+                std::cout << " [EOS penalty: " << std::fixed << std::setprecision(3) << eos_penalty << "]";
+            }
             
             // Calculate adaptive learning rate
-            float current_lr = calculateLearningRate(global_step, loss);
+            float current_lr = calculateLearningRate(global_step, final_loss);
             global_step++;
             
-            std::cout << " Loss: " << std::fixed << std::setprecision(3) << loss 
+            std::cout << " Loss: " << std::fixed << std::setprecision(3) << final_loss 
                       << " (LR: " << std::setprecision(4) << current_lr << ")" << std::flush;
             
             // 3. Backward pass - USAR EL NUEVO SISTEMA
@@ -58,7 +66,7 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
             
             std::cout << " [Updated]" << std::endl;
             
-            total_loss += loss;
+            total_loss += final_loss;
             processed_samples++;
             
         } catch (const std::exception& e) {
@@ -139,4 +147,42 @@ float Trainer::calculateLearningRate(int step, float current_loss) {
     }
     
     return base_lr;
+}
+
+double Trainer::calculateEOSPenalty(const Matrix& predictions, const std::vector<int>& target_sequence) {
+    const int EOS_TOKEN = 3; // Asumiendo que EOS es el token 3
+    double penalty = 0.0;
+    
+    int batch_size = predictions.getRows();
+    int vocab_size = predictions.getCols();
+    int expected_length = target_sequence.size();
+    
+    // Solo penalizar si la secuencia objetivo es suficientemente larga
+    if (expected_length <= 2) return 0.0;
+    
+    for (int pos = 0; pos < std::min(batch_size, expected_length - 1); ++pos) {
+        // Obtener la probabilidad softmax del token EOS en esta posición
+        float max_logit = predictions.getElement(pos, 0);
+        for (int v = 1; v < vocab_size; ++v) {
+            max_logit = std::max(max_logit, predictions.getElement(pos, v));
+        }
+        
+        float eos_logit = predictions.getElement(pos, EOS_TOKEN);
+        float eos_exp = exp(eos_logit - max_logit);
+        
+        float sum_exp = 0.0f;
+        for (int v = 0; v < vocab_size; ++v) {
+            sum_exp += exp(predictions.getElement(pos, v) - max_logit);
+        }
+        
+        float eos_prob = eos_exp / sum_exp;
+        
+        // Calcular penalización basada en posición y probabilidad
+        if (pos < expected_length / 2) { // Primera mitad de la secuencia
+            float position_penalty = (float)(expected_length / 2 - pos) / (float)(expected_length / 2);
+            penalty += position_penalty * eos_prob * 2.0; // Factor de escala
+        }
+    }
+    
+    return penalty;
 }

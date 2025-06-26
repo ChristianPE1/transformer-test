@@ -23,6 +23,7 @@ private:
 
     void forward_and_backward(const std::vector<int>& source, const std::vector<int>& target);
     float calculateLearningRate(int step, float current_loss);
+    double calculateEOSPenalty(const Matrix& predictions, const std::vector<int>& target_sequence);
 };
 
 #endif // TRAINER_CUH

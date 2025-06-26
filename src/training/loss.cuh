@@ -62,7 +62,11 @@ public:
             return 100.0; // Return a large but finite loss
         }
         
-        // Calcular cross-entropy real con mejor estabilización numérica
+        // Calcular cross-entropy real con mejor estabilización numérica y label smoothing
+        const float label_smoothing = 0.1f;  // 10% label smoothing
+        const float true_prob = 1.0f - label_smoothing;
+        const float smooth_prob = label_smoothing / (num_classes - 1);
+        
         for (int i = 0; i < batch_size; i++) {
             int target_class = static_cast<int>(targets.getElement(i, 0));
             if (target_class >= 0 && target_class < num_classes) {
@@ -86,15 +90,33 @@ public:
                     sum_exp = 1e-10;
                 }
                 
-                // Calcular log-softmax estabilizado
-                double target_logit = predictions.getElement(i, target_class) - max_val;
-                double log_softmax = target_logit - log(sum_exp);
+                // Calcular loss con label smoothing
+                double batch_loss = 0.0;
+                for (int j = 0; j < num_classes; j++) {
+                    double log_prob = (predictions.getElement(i, j) - max_val) - log(sum_exp);
+                    
+                    double target_prob;
+                    if (j == target_class) {
+                        target_prob = true_prob;
+                    } else {
+                        target_prob = smooth_prob;
+                        
+                        // Penalización extra para <eos> (token 3) en posiciones tempranas
+                        if (j == 3 && i < 2) {
+                            target_prob *= 0.1f;  // Reducir probabilidad por 10x
+                        }
+                    }
+                    
+                    if (std::isfinite(log_prob)) {
+                        batch_loss -= target_prob * log_prob;
+                    }
+                }
                 
                 // Verificar que el resultado sea finito
-                if (std::isfinite(log_softmax)) {
-                    total_loss -= log_softmax;
+                if (std::isfinite(batch_loss)) {
+                    total_loss += batch_loss;
                 } else {
-                    std::cout << "[LOSS] WARNING: Non-finite log_softmax for sample " << i << std::endl;
+                    std::cout << "[LOSS] WARNING: Non-finite loss for sample " << i << std::endl;
                     total_loss += 10.0; // Penalizar con una pérdida alta pero finita
                 }
             }
@@ -145,17 +167,31 @@ public:
             
             int target_class = static_cast<int>(targets.getElement(i, 0));
             
-            // Calcular gradientes del softmax
+            // Label smoothing parameters
+            const float label_smoothing = 0.1f;  // 10% label smoothing
+            const float true_prob = 1.0f - label_smoothing;
+            const float smooth_prob = label_smoothing / (num_classes - 1);
+            
+            // Calcular gradientes del softmax con label smoothing
             for (int j = 0; j < num_classes; j++) {
                 float softmax_val = static_cast<float>(exp_vals[j] / sum_exp);
                 
                 // Clamp softmax para evitar valores extremos
                 softmax_val = std::max(1e-7f, std::min(1.0f - 1e-7f, softmax_val));
                 
-                float gradient = softmax_val;
+                float target_prob;
                 if (j == target_class) {
-                    gradient -= 1.0f;
+                    target_prob = true_prob;
+                } else {
+                    target_prob = smooth_prob;
+                    
+                    // Penalización extra para <eos> (token 3) en posiciones tempranas
+                    if (j == 3 && i < 2) {  // Penalizar <eos> en las primeras 2 posiciones
+                        target_prob *= 0.1f;  // Reducir probabilidad objetivo por 10x
+                    }
                 }
+                
+                float gradient = softmax_val - target_prob;
                 
                 // Clamp gradiente para evitar explosión
                 gradient = std::max(-10.0f, std::min(10.0f, gradient));
@@ -186,6 +222,27 @@ public:
         std::cout << "[LOSS] Gradient sum: " << grad_sum << std::endl;
         
         return grad;
+    }
+    
+    // Función auxiliar para calcular penalización de EOS temprano
+    double calculateEOSPenalty(const Matrix& predictions, const Matrix& targets) {
+        int batch_size = predictions.getRows();
+        int num_classes = predictions.getCols();
+        double penalty = 0.0;
+        
+        for (int i = 0; i < batch_size; i++) {
+            // Solo penalizar en las primeras 3 posiciones de la secuencia
+            if (i < 3) {
+                float eos_logit = predictions.getElement(i, 3); // Token 3 es <eos>
+                
+                // Si <eos> tiene alta probabilidad en posición temprana, penalizar
+                if (eos_logit > 0.0f) {
+                    penalty += eos_logit * 2.0f; // Penalización proporcional al logit
+                }
+            }
+        }
+        
+        return penalty / batch_size;
     }
 };
 #endif // LOSS_H
