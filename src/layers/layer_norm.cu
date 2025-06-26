@@ -46,7 +46,7 @@ Matrix LayerNorm::forward(const Matrix &input) {
     Matrix output(N, D);
 
     // DEBUG: Check input values
-    std::vector<float> debug_input(std::min(10, N * D));
+    std::vector<float> debug_input(std::min(100, N * D));
     cudaMemcpy(debug_input.data(), input.getData(), debug_input.size() * sizeof(float), cudaMemcpyDeviceToHost);
     
     int non_zero_input = 0;
@@ -60,19 +60,65 @@ Matrix LayerNorm::forward(const Matrix &input) {
     }
     printf("\n");
 
-    float *d_input = input.getData();
-    float *d_output = output.getData();
-    float *d_gamma = gamma.getData();
-    float *d_beta = beta.getData();
+    // DEBUG: Check gamma and beta values
+    std::vector<float> debug_gamma(D);
+    std::vector<float> debug_beta(D);
+    cudaMemcpy(debug_gamma.data(), gamma.getData(), D * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(debug_beta.data(), beta.getData(), D * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    printf("[LAYER_NORM] Gamma first 5: ");
+    for (int i = 0; i < std::min(5, D); i++) {
+        printf("%.6f ", debug_gamma[i]);
+    }
+    printf("\n");
+    printf("[LAYER_NORM] Beta first 5: ");
+    for (int i = 0; i < std::min(5, D); i++) {
+        printf("%.6f ", debug_beta[i]);
+    }
+    printf("\n");
 
-    int blockSize = 256;
-    int numBlocks = (N + blockSize - 1) / blockSize;
-    layer_norm_kernel<<<numBlocks, blockSize>>>(d_input, d_output, d_gamma, d_beta, N, D, epsilon);
+    // Use CPU implementation for better debugging
+    std::vector<float> h_input(N * D);
+    std::vector<float> h_output(N * D);
+    cudaMemcpy(h_input.data(), input.getData(), N * D * sizeof(float), cudaMemcpyDeviceToHost);
 
-    cudaDeviceSynchronize();
+    // CPU LayerNorm implementation
+    for (int i = 0; i < N; i++) {
+        // Calculate mean
+        float mean = 0.0f;
+        for (int j = 0; j < D; j++) {
+            mean += h_input[i * D + j];
+        }
+        mean /= D;
+
+        // Calculate variance
+        float variance = 0.0f;
+        for (int j = 0; j < D; j++) {
+            float diff = h_input[i * D + j] - mean;
+            variance += diff * diff;
+        }
+        variance /= D;
+
+        // Calculate standard deviation with epsilon
+        float stddev = sqrtf(variance + epsilon);
+        
+        // Debug info for first sequence
+        if (i == 0) {
+            printf("[LAYER_NORM] Row 0: mean=%.6f, variance=%.6f, stddev=%.6f\n", mean, variance, stddev);
+        }
+
+        // Normalize and apply gamma and beta
+        for (int j = 0; j < D; j++) {
+            float normalized = (h_input[i * D + j] - mean) / stddev;
+            h_output[i * D + j] = debug_gamma[j] * normalized + debug_beta[j];
+        }
+    }
+
+    // Copy result back to GPU
+    cudaMemcpy(output.getData(), h_output.data(), N * D * sizeof(float), cudaMemcpyHostToDevice);
 
     // DEBUG: Check output values
-    std::vector<float> debug_output(std::min(10, N * D));
+    std::vector<float> debug_output(std::min(100, N * D));
     cudaMemcpy(debug_output.data(), output.getData(), debug_output.size() * sizeof(float), cudaMemcpyDeviceToHost);
     
     int non_zero_output = 0;
