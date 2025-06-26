@@ -160,8 +160,8 @@ void Linear::updateWeights(float learning_rate) {
     
     // For output projection layers, use higher learning rate to break symmetry
     if (output_dim > 500) {
-        effective_lr *= 3.0f; // Higher learning rate for output projection
-        std::cout << "[LINEAR] Output projection - using 3x learning rate: " << effective_lr << std::endl;
+        effective_lr *= 5.0f; // Aumentado de 3x a 5x para la output projection
+        std::cout << "[LINEAR] Output projection - using 5x learning rate: " << effective_lr << std::endl;
     }
     
     if (max_grad_weight > 0.5f || max_grad_bias > 0.5f) {

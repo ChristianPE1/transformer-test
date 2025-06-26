@@ -117,9 +117,9 @@ int main()
             std::cout << "\n=== Iniciando Entrenamiento ===" << std::endl;
             
             // Configuración de entrenamiento
-            int epochs = 20;  // Más épocas
-            int batch_size = 4;   // Batch más pequeño para gradientes más estables
-            float learning_rate = 0.005f;  // Learning rate intermedio
+            int epochs = 100;  // Más épocas ya que el progreso es lento pero constante
+            int batch_size = 8;   // Batch más pequeño para gradientes más estables
+            float learning_rate = 0.02f;  // Learning rate más alto - el modelo aprende lento pero estable
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -148,7 +148,8 @@ int main()
                 
                 // Entrenar
                 trainer.train(source_batches, target_batches);
-                  // Probar generación cada 5 épocas para ver progreso
+                
+                // Probar generación cada 5 épocas para ver progreso
                 if ((epoch + 1) % 5 == 0) {
                     std::cout << "  === Progreso en época " << (epoch + 1) << " ===" << std::endl;
                     auto gen = transformer.generate(source_ids, 2, 3, 8);
