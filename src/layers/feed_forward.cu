@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib> // Para rand()
+#include <ctime>   // Para time()
+#include <iostream>
 
 __global__ void feedForwardKernel(
     const float* input, float* output,
@@ -175,23 +177,35 @@ __global__ void initializeWeightsKernel(float* weights, int size, unsigned long 
 }
 
 void FeedForward::initializeWeights() {
-    // Initialize W1 weights
+    // Use proper seed
+    srand(static_cast<unsigned>(time(nullptr)));
+    
+    // Initialize W1 weights with Xavier initialization
     int W1_size = d_model * d_ff;
     std::vector<float> W1_data(W1_size);
+    float xavier_w1 = sqrt(2.0f / (d_model + d_ff)); // Xavier initialization
     for (int i = 0; i < W1_size; ++i) {
-        W1_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.2f; // Random initialization
+        W1_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * xavier_w1;
     }
     W1.copyFromHost(W1_data);
 
-    // Initialize W2 weights
+    // Initialize W2 weights with Xavier initialization
     int W2_size = d_ff * d_model;
     std::vector<float> W2_data(W2_size);
+    float xavier_w2 = sqrt(2.0f / (d_ff + d_model)); // Xavier initialization
     for (int i = 0; i < W2_size; ++i) {
-        W2_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.2f; // Random initialization
+        W2_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * xavier_w2;
     }
     W2.copyFromHost(W2_data);
 
-    // Initialize biases to zero (ya están inicializados con cudaMemset en el constructor)
+    // Initialize biases to zero
+    std::vector<float> b1_data(d_ff, 0.0f);
+    std::vector<float> b2_data(d_model, 0.0f);
+    cudaMemcpy(b1, b1_data.data(), d_ff * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(b2, b2_data.data(), d_model * sizeof(float), cudaMemcpyHostToDevice);
+    
+    std::cout << "[FEEDFORWARD] Weights initialized with Xavier initialization" << std::endl;
+    std::cout << "[FEEDFORWARD] W1 scale: " << xavier_w1 << ", W2 scale: " << xavier_w2 << std::endl;
 }
 
 Matrix FeedForward::backward(const Matrix &grad_output, const Matrix &input) {
@@ -307,6 +321,30 @@ void FeedForward::updateWeights(float learning_rate) {
     W1.copyToHost(W1_data);
     grad_W1.copyToHost(grad_W1_data);
     
+    // Check for NaN or inf in weights and gradients
+    bool has_nan_w1 = false, has_nan_grad_w1 = false;
+    for (size_t i = 0; i < W1_data.size(); ++i) {
+        if (std::isnan(W1_data[i]) || std::isinf(W1_data[i])) has_nan_w1 = true;
+        if (std::isnan(grad_W1_data[i]) || std::isinf(grad_W1_data[i])) has_nan_grad_w1 = true;
+    }
+    
+    if (has_nan_w1 || has_nan_grad_w1) {
+        std::cout << "[FEEDFORWARD] ERROR: NaN/Inf detected in W1 weights or gradients! Reinitializing..." << std::endl;
+        // Reinitialize W1
+        for (size_t i = 0; i < W1_data.size(); ++i) {
+            W1_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.1f; // Smaller initialization
+        }
+        W1.copyFromHost(W1_data);
+        // Skip this update
+        return;
+    }
+    
+    // Clip gradients to prevent explosion
+    for (size_t i = 0; i < grad_W1_data.size(); ++i) {
+        if (grad_W1_data[i] > 1.0f) grad_W1_data[i] = 1.0f;
+        if (grad_W1_data[i] < -1.0f) grad_W1_data[i] = -1.0f;
+    }
+    
     for (size_t i = 0; i < W1_data.size(); ++i) {
         W1_data[i] -= learning_rate * grad_W1_data[i];
     }
@@ -316,6 +354,30 @@ void FeedForward::updateWeights(float learning_rate) {
     std::vector<float> W2_data, grad_W2_data;
     W2.copyToHost(W2_data);
     grad_W2.copyToHost(grad_W2_data);
+    
+    // Check for NaN or inf in W2
+    bool has_nan_w2 = false, has_nan_grad_w2 = false;
+    for (size_t i = 0; i < W2_data.size(); ++i) {
+        if (std::isnan(W2_data[i]) || std::isinf(W2_data[i])) has_nan_w2 = true;
+        if (std::isnan(grad_W2_data[i]) || std::isinf(grad_W2_data[i])) has_nan_grad_w2 = true;
+    }
+    
+    if (has_nan_w2 || has_nan_grad_w2) {
+        std::cout << "[FEEDFORWARD] ERROR: NaN/Inf detected in W2 weights or gradients! Reinitializing..." << std::endl;
+        // Reinitialize W2
+        for (size_t i = 0; i < W2_data.size(); ++i) {
+            W2_data[i] = ((float)rand() / RAND_MAX - 0.5f) * 0.1f; // Smaller initialization
+        }
+        W2.copyFromHost(W2_data);
+        // Skip this update
+        return;
+    }
+    
+    // Clip gradients to prevent explosion
+    for (size_t i = 0; i < grad_W2_data.size(); ++i) {
+        if (grad_W2_data[i] > 1.0f) grad_W2_data[i] = 1.0f;
+        if (grad_W2_data[i] < -1.0f) grad_W2_data[i] = -1.0f;
+    }
     
     for (size_t i = 0; i < W2_data.size(); ++i) {
         W2_data[i] -= learning_rate * grad_W2_data[i];
@@ -331,10 +393,24 @@ void FeedForward::updateWeights(float learning_rate) {
     cudaMemcpy(grad_b1_h.data(), grad_b1, d_ff * sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(grad_b2_h.data(), grad_b2, d_model * sizeof(float), cudaMemcpyDeviceToHost);
     
+    // Clip bias gradients and check for NaN
     for (size_t i = 0; i < d_ff; ++i) {
+        if (std::isnan(grad_b1_h[i]) || std::isinf(grad_b1_h[i])) {
+            grad_b1_h[i] = 0.0f;
+        } else {
+            if (grad_b1_h[i] > 1.0f) grad_b1_h[i] = 1.0f;
+            if (grad_b1_h[i] < -1.0f) grad_b1_h[i] = -1.0f;
+        }
         b1_h[i] -= learning_rate * grad_b1_h[i];
     }
+    
     for (size_t i = 0; i < d_model; ++i) {
+        if (std::isnan(grad_b2_h[i]) || std::isinf(grad_b2_h[i])) {
+            grad_b2_h[i] = 0.0f;
+        } else {
+            if (grad_b2_h[i] > 1.0f) grad_b2_h[i] = 1.0f;
+            if (grad_b2_h[i] < -1.0f) grad_b2_h[i] = -1.0f;
+        }
         b2_h[i] -= learning_rate * grad_b2_h[i];
     }
     
