@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <ctime>
 
-// Simple kernel for positional encoding (keeping only this one for now)
+// Corrected kernel for positional encoding following standard Transformer formula
 __global__ void initPositionalEncodingKernel(float *pos_enc, int d_model, int max_len)
 {
     int pos = blockIdx.x * blockDim.x + threadIdx.x;
@@ -18,13 +18,20 @@ __global__ void initPositionalEncodingKernel(float *pos_enc, int d_model, int ma
 
     if (pos < max_len && i < d_model)
     {
-        float angle = pos / powf(10000.0f, (2.0f * (i / 2)) / d_model);
+        // Correct positional encoding formula: PE(pos, 2i) = sin(pos/10000^(2i/d_model))
+        // PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
+        int pair_idx = i / 2;  // Which sine/cosine pair this dimension belongs to
+        float div_term = powf(10000.0f, (2.0f * pair_idx) / (float)d_model);
+        float angle = (float)pos / div_term;
+        
         if (i % 2 == 0)
         {
+            // Even dimensions get sine
             pos_enc[pos * d_model + i] = sinf(angle);
         }
         else
         {
+            // Odd dimensions get cosine
             pos_enc[pos * d_model + i] = cosf(angle);
         }
     }
@@ -206,6 +213,33 @@ Matrix PositionalEncoding::getEncoding(int seq_len)
     // Copy relevant portion of positional encodings
     cudaMemcpy(result.getData(), pos_encodings,
                seq_len * d_model * sizeof(float), cudaMemcpyDeviceToDevice);
+
+    // DEBUG: Verify positional encoding values
+    std::vector<float> pos_debug(std::min(20, seq_len * (int)d_model));
+    result.copyToHost(pos_debug);
+    
+    float pos_sum = 0.0f;
+    int non_zero_pos = 0;
+    float pos_max = -1e10f, pos_min = 1e10f;
+    
+    for (int i = 0; i < pos_debug.size(); ++i) {
+        if (abs(pos_debug[i]) > 1e-8f) {
+            non_zero_pos++;
+            pos_sum += pos_debug[i];
+            pos_max = std::max(pos_max, pos_debug[i]);
+            pos_min = std::min(pos_min, pos_debug[i]);
+        }
+    }
+    
+    std::cout << "[POS_ENC] Stats: " << non_zero_pos << "/" << pos_debug.size() 
+              << " non-zero, sum=" << pos_sum 
+              << ", range=[" << pos_min << ", " << pos_max << "]" << std::endl;
+    
+    std::cout << "[POS_ENC] First 10 values: ";
+    for (int i = 0; i < std::min(10, (int)pos_debug.size()); ++i) {
+        std::cout << std::fixed << std::setprecision(6) << pos_debug[i] << " ";
+    }
+    std::cout << std::endl;
 
     return result;
 }

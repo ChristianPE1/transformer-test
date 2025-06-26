@@ -85,6 +85,39 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
 
     // Add positional encoding
     Matrix pos_enc = pos_encoding.getEncoding(input_tokens.size());
+    
+    // DEBUG: Check positional encoding values before addition
+    std::vector<float> pos_enc_check(std::min(20, pos_enc.getRows() * pos_enc.getCols()));
+    pos_enc.copyToHost(pos_enc_check);
+    
+    float pos_enc_sum = 0.0f;
+    int non_zero_pos_enc = 0;
+    for (int i = 0; i < pos_enc_check.size(); ++i) {
+        if (abs(pos_enc_check[i]) > 1e-6f) {
+            non_zero_pos_enc++;
+            pos_enc_sum += pos_enc_check[i];
+        }
+    }
+    
+    std::cout << "[ENCODER] POS ENC before add: " << non_zero_pos_enc << "/" << pos_enc_check.size() 
+              << " non-zero, sum=" << pos_enc_sum << std::endl;
+    
+    // Check scaled embeddings before addition
+    std::vector<float> scaled_embed_check(std::min(20, embeddings.getRows() * embeddings.getCols()));
+    embeddings.copyToHost(scaled_embed_check);
+    
+    float scaled_embed_sum = 0.0f;
+    int non_zero_scaled = 0;
+    for (int i = 0; i < scaled_embed_check.size(); ++i) {
+        if (abs(scaled_embed_check[i]) > 1e-6f) {
+            non_zero_scaled++;
+            scaled_embed_sum += scaled_embed_check[i];
+        }
+    }
+    
+    std::cout << "[ENCODER] SCALED EMBEDS before add: " << non_zero_scaled << "/" << scaled_embed_check.size() 
+              << " non-zero, sum=" << scaled_embed_sum << std::endl;
+    
     Matrix encoder_input = embeddings.add(pos_enc);
 
     // DEBUG: Check encoder input after adding positional encoding
@@ -181,6 +214,39 @@ Matrix Transformer::decode(const std::vector<int> &target_tokens,
 
     // Add positional encoding
     Matrix pos_enc = pos_encoding.getEncoding(target_tokens.size());
+    
+    // DEBUG: Check positional encoding values before addition
+    std::vector<float> dec_pos_enc_check(std::min(20, pos_enc.getRows() * pos_enc.getCols()));
+    pos_enc.copyToHost(dec_pos_enc_check);
+    
+    float dec_pos_enc_sum = 0.0f;
+    int non_zero_dec_pos_enc = 0;
+    for (int i = 0; i < dec_pos_enc_check.size(); ++i) {
+        if (abs(dec_pos_enc_check[i]) > 1e-6f) {
+            non_zero_dec_pos_enc++;
+            dec_pos_enc_sum += dec_pos_enc_check[i];
+        }
+    }
+    
+    std::cout << "[DECODER] POS ENC before add: " << non_zero_dec_pos_enc << "/" << dec_pos_enc_check.size() 
+              << " non-zero, sum=" << dec_pos_enc_sum << std::endl;
+    
+    // Check scaled embeddings before addition
+    std::vector<float> dec_scaled_embed_check(std::min(20, embeddings.getRows() * embeddings.getCols()));
+    embeddings.copyToHost(dec_scaled_embed_check);
+    
+    float dec_scaled_embed_sum = 0.0f;
+    int non_zero_dec_scaled = 0;
+    for (int i = 0; i < dec_scaled_embed_check.size(); ++i) {
+        if (abs(dec_scaled_embed_check[i]) > 1e-6f) {
+            non_zero_dec_scaled++;
+            dec_scaled_embed_sum += dec_scaled_embed_check[i];
+        }
+    }
+    
+    std::cout << "[DECODER] SCALED EMBEDS before add: " << non_zero_dec_scaled << "/" << dec_scaled_embed_check.size() 
+              << " non-zero, sum=" << dec_scaled_embed_sum << std::endl;
+    
     Matrix decoder_input = embeddings.add(pos_enc);
 
     // DEBUG: Check decoder input after positional encoding
