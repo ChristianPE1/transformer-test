@@ -4,6 +4,8 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <cmath>
+#include <iostream>
+#include <iomanip>
 
 __global__ void initEmbeddingsKernel(float *embeddings, int vocab_size, int d_model, unsigned long seed)
 {
@@ -78,6 +80,31 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
 
     cudaDeviceSynchronize();
     cudaFree(d_input_ids);
+
+    // DEBUG: Check if embedding weights are zero
+    std::vector<float> sample_weights(10);
+    cudaMemcpy(sample_weights.data(), weights, 10 * sizeof(float), cudaMemcpyDeviceToHost);
+    std::cout << "[EMBEDDING] Sample weights: ";
+    for (int i = 0; i < 5; ++i) {
+        std::cout << std::fixed << std::setprecision(3) << sample_weights[i] << " ";
+    }
+    std::cout << std::endl;
+
+    // DEBUG: Check if output is zero
+    std::vector<float> sample_output(std::min(10, seq_len * d_model));
+    output.copyToHost(sample_output);
+    std::cout << "[EMBEDDING] Sample output: ";
+    for (int i = 0; i < std::min(5, (int)sample_output.size()); ++i) {
+        std::cout << std::fixed << std::setprecision(3) << sample_output[i] << " ";
+    }
+    std::cout << std::endl;
+
+    // DEBUG: Check input tokens
+    std::cout << "[EMBEDDING] Input tokens: ";
+    for (int i = 0; i < std::min(5, seq_len); ++i) {
+        std::cout << input_tokens[i] << " ";
+    }
+    std::cout << std::endl;
 
     return output;
 }
