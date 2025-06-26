@@ -160,9 +160,15 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
     if (!input_tokens.empty()) {
         int first_token = input_tokens[0];
         if (first_token >= 0 && first_token < (int)vocab_size) {
+            // Get the specific token embedding from device
+            std::vector<float> token_embedding(std::min(5, (int)d_model));
+            cudaMemcpy(token_embedding.data(), 
+                      weights + first_token * d_model, 
+                      std::min(5, (int)d_model) * sizeof(float), 
+                      cudaMemcpyDeviceToHost);
             std::cout << "[EMBEDDING] Token " << first_token << " embedding: ";
             for (int i = 0; i < std::min(5, (int)d_model); ++i) {
-                std::cout << std::fixed << std::setprecision(3) << host_weights[first_token * d_model + i] << " ";
+                std::cout << std::fixed << std::setprecision(3) << token_embedding[i] << " ";
             }
             std::cout << std::endl;
         }
