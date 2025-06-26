@@ -10,17 +10,35 @@
 
 Transformer::Transformer(size_t input_vocab_size, size_t target_vocab_size,size_t d_model, size_t n_heads, size_t n_layers, size_t d_ff)
     : input_vocab_size(input_vocab_size), target_vocab_size(target_vocab_size),
-      d_model(d_model), n_layers(n_layers),
+      d_model(d_model), n_layers(n_layers), n_heads(n_heads), d_ff(d_ff),
       input_embedding(input_vocab_size, d_model),
       target_embedding(target_vocab_size, d_model),
-      pos_encoding(d_model)
+      pos_encoding(d_model),
+      output_projection(d_model, target_vocab_size)
 {
+    std::cout << "Initializing Transformer with real layers..." << std::endl;
+    
+    // Initialize encoder layers
+    encoder_layers.reserve(n_layers);
+    for (size_t i = 0; i < n_layers; ++i) {
+        encoder_layers.emplace_back(d_model, n_heads, d_ff);
+    }
+    
+    // Initialize decoder layers  
+    decoder_layers.reserve(n_layers);
+    for (size_t i = 0; i < n_layers; ++i) {
+        decoder_layers.emplace_back(d_model, n_heads, d_ff);
+    }
 
     std::cout << "Transformer initialized:" << std::endl;
     std::cout << "  Input vocab: " << input_vocab_size << std::endl;
     std::cout << "  Target vocab: " << target_vocab_size << std::endl;
     std::cout << "  d_model: " << d_model << std::endl;
+    std::cout << "  n_heads: " << n_heads << std::endl;
     std::cout << "  layers: " << n_layers << std::endl;
+    std::cout << "  d_ff: " << d_ff << std::endl;
+    std::cout << "  Encoder layers: " << encoder_layers.size() << std::endl;
+    std::cout << "  Decoder layers: " << decoder_layers.size() << std::endl;
 }
 
 Matrix Transformer::encode(const std::vector<int> &input_tokens)
@@ -42,8 +60,12 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
     Matrix pos_enc = pos_encoding.getEncoding(input_tokens.size());
     Matrix encoder_input = embeddings.add(pos_enc);
 
-    // For now, return encoder_input (no actual encoder layers yet)
-    return encoder_input;
+    // Pass through encoder layers (REAL IMPLEMENTATION)
+    Matrix encoder_output(encoder_input.getRows(), encoder_input.getCols());
+    Matrix src_mask; // For now, no masking
+    encoder.forward(encoder_input, src_mask, encoder_output);
+
+    return encoder_output;
 }
 
 Matrix Transformer::decode(const std::vector<int> &target_tokens,
@@ -66,10 +88,17 @@ Matrix Transformer::decode(const std::vector<int> &target_tokens,
     Matrix pos_enc = pos_encoding.getEncoding(target_tokens.size());
     Matrix decoder_input = embeddings.add(pos_enc);
 
-    // ATENCIÓN CRUZADA SIMPLE - Mezclar decoder input con encoder output
-    Matrix decoder_output = applyCrossAttention(decoder_input, encoder_output);
+    // Pass through decoder layers (REAL IMPLEMENTATION)
+    Matrix current_output = decoder_input;
+    
+    // Create causal mask for target sequence
+    Matrix target_mask = createCausalMask(target_tokens.size());
+    
+    for (size_t i = 0; i < n_layers; ++i) {
+        current_output = decoder_layers[i].forward(current_output, encoder_output, target_mask);
+    }
 
-    return decoder_output;
+    return current_output;
 }
 
 // Nueva función de atención cruzada simple
@@ -126,122 +155,17 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
     // Store target tokens for later gradient updates
     last_target_tokens = target_tokens;
     
-    // Encode
+    // Encode source sequence
     Matrix encoder_output = encode(source_tokens);
     std::cout << "[DEBUG] Encode OK - shape: " << encoder_output.getRows() << "x" << encoder_output.getCols() << std::endl;
 
-    // Decode
+    // Decode target sequence
     Matrix decoder_output = decode(target_tokens, encoder_output);
-    std::cout << "[DEBUG] Decode OK - shape: " << decoder_output.getRows() << "x" << decoder_output.getCols() << std::endl;    // Project to vocabulary - MEJORADO CON ATENCIÓN A FUENTE
-    Matrix output(target_tokens.size(), target_vocab_size, 0.0f);
-    std::cout << "[DEBUG] Created output matrix: " << output.getRows() << "x" << output.getCols() << std::endl;
-
-    // Inicializar semilla una vez
-    static bool seed_initialized = false;
-    if (!seed_initialized) {
-        srand(time(nullptr));
-        seed_initialized = true;
-    }
-
-    for (int i = 0; i < target_tokens.size(); ++i) {
-        
-        // ATENCIÓN CRUZADA MEJORADA: Diversificar la atención
-        std::vector<float> cross_attention(source_tokens.size(), 0.0f);
-        float attention_sum = 0.0f;
-        
-        for (int j = 0; j < source_tokens.size(); ++j) {
-            float attention_score = 0.0f;
-            
-            // Calcular atención basada en:
-            // 1. Similitud posicional
-            float pos_similarity = 1.0f / (1.0f + abs(i - j));
-            
-            // 2. Similitud de contenido decoder-encoder 
-            for (int d = 0; d < std::min(32, (int)d_model); ++d) {
-                float decoder_val = decoder_output.getElement(i, d);
-                float encoder_val = encoder_output.getElement(j, d);
-                attention_score += decoder_val * encoder_val;
-            }
-            
-            // 3. Componente de diversidad para evitar colapso
-            float diversity_factor = 1.0f + 0.3f * sin((i + j) * 0.5f);
-            
-            // 4. Exploración posicional para que no siempre atienda a pos 0
-            float exploration = 0.1f * (j + 1.0f) / source_tokens.size();
-            
-            attention_score = attention_score * 0.1f + pos_similarity * 0.3f + 
-                             diversity_factor * 0.4f + exploration * 0.2f;
-            
-            cross_attention[j] = exp(attention_score);
-            attention_sum += cross_attention[j];
-        }
-        
-        // Normalizar atención
-        for (int j = 0; j < source_tokens.size(); ++j) {
-            cross_attention[j] /= (attention_sum + 1e-8f);
-        }
-        
-        // DEBUG: Mostrar qué posición atiende más
-        int max_att_pos = 0;
-        float max_att_val = cross_attention[0];
-        for (int j = 1; j < source_tokens.size(); ++j) {
-            if (cross_attention[j] > max_att_val) {
-                max_att_val = cross_attention[j];
-                max_att_pos = j;
-            }
-        }
-        
-        if (i % 2 == 0) { // Solo imprimir cada 2 posiciones para no saturar
-            std::cout << "[DEBUG] Processed row " << i << " (attending to source pos " << max_att_pos << ")" << std::endl;
-        }
-        
-        for (int v = 0; v < target_vocab_size; ++v) { 
-            float similarity = 0.0f;
-            
-            // 1. Similitud con embedding del token candidato
-            std::vector<int> temp_token = {v};
-            Matrix vocab_embedding = target_embedding.forward(temp_token);
-            
-            for (int d = 0; d < std::min(32, (int)d_model); ++d) {
-                float decoder_val = decoder_output.getElement(i, d);
-                float vocab_val = vocab_embedding.getElement(0, d);
-                similarity += decoder_val * vocab_val;
-            }
-            similarity /= std::min(32, (int)d_model);
-            
-            // 2. Contribución del contexto fuente usando atención cruzada
-            float source_context = 0.0f;
-            for (int j = 0; j < source_tokens.size(); ++j) {
-                for (int d = 0; d < std::min(8, (int)d_model); ++d) {
-                    float encoder_val = encoder_output.getElement(j, d);
-                    source_context += encoder_val * cross_attention[j] * ((v + d) % 20 + 1) * 0.01f;
-                }
-            }
-            similarity += source_context;
-            
-            // 3. Bias de frecuencia ajustado
-            if (v < 50) similarity += 0.15f;       // Tokens muy comunes
-            else if (v < 200) similarity += 0.1f;  // Tokens comunes  
-            else if (v < 500) similarity += 0.05f; // Tokens moderados
-            
-            // 4. Pequeña exploración aleatoria
-            similarity += ((float)rand() / RAND_MAX - 0.5f) * 0.05f;
-            
-            output.setElement(i, v, similarity);
-        }
-        
-        if (i % 2 == 0) {
-            // Encontrar posición source con mayor atención
-            int max_attention_pos = 0;
-            for (int j = 1; j < source_tokens.size(); ++j) {
-                if (cross_attention[j] > cross_attention[max_attention_pos]) {
-                    max_attention_pos = j;
-                }
-            }
-            std::cout << "[DEBUG] Processed row " << i 
-                      << " (attending to source pos " << max_attention_pos << ")" << std::endl;
-        }
-    }
+    std::cout << "[DEBUG] Decode OK - shape: " << decoder_output.getRows() << "x" << decoder_output.getCols() << std::endl;
+    
+    // Project to vocabulary space
+    Matrix output = output_projection.forward(decoder_output);
+    std::cout << "[DEBUG] Output projection - shape: " << output.getRows() << "x" << output.getCols() << std::endl;
     
     std::cout << "[DEBUG] Forward completed!" << std::endl;
     return output;
@@ -429,4 +353,18 @@ void Transformer::updateTargetEmbeddings(const Matrix& gradients, float learning
     target_embedding.updateWeights(gradients, learning_rate, last_target_tokens);
     
     std::cout << "[UPDATE] Target embeddings updated for " << last_target_tokens.size() << " tokens" << std::endl;
+}
+
+// Create causal mask for decoder self-attention
+Matrix Transformer::createCausalMask(int seq_len) {
+    Matrix mask(seq_len, seq_len, 0.0f);
+    
+    // Upper triangular mask (prevent attending to future positions)
+    for (int i = 0; i < seq_len; ++i) {
+        for (int j = i + 1; j < seq_len; ++j) {
+            mask.setElement(i, j, -1e9f); // Large negative value for masking
+        }
+    }
+    
+    return mask;
 }
