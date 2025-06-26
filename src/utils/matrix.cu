@@ -92,11 +92,32 @@ Matrix Matrix::add(const Matrix &other) const
     }
     printf("\n");
 
-    int blockSize = 256;
-    int numBlocks = (size + blockSize - 1) / blockSize;
+    // TEMPORARY FIX: Use CPU implementation instead of broken CUDA kernel
+    std::vector<float> host_a(size);
+    std::vector<float> host_b(size);
+    std::vector<float> host_result(size);
+    
+    // Copy data to host
+    cudaMemcpy(host_a.data(), data, size * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_b.data(), other.data, size * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    // Perform addition on CPU
+    for (int i = 0; i < size; i++) {
+        host_result[i] = host_a[i] + host_b[i];
+    }
+    
+    // Copy result back to GPU
+    cudaMemcpy(result.data, host_result.data(), size * sizeof(float), cudaMemcpyHostToDevice);
 
-    matrixAddKernel<<<numBlocks, blockSize>>>(data, other.data, result.data, size);
-    cudaDeviceSynchronize();
+    // DEBUG: Check result after addition
+    printf("[MATRIX_ADD_DEBUG] Result first 5 values: ");
+    for (int i = 0; i < std::min(5, size); i++) {
+        printf("%.6f ", host_result[i]);
+    }
+    printf("\n");
+
+    return result;
+}
 
     // DEBUG: Check result after addition
     std::vector<float> debug_result(std::min(10, size));
