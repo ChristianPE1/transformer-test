@@ -64,11 +64,14 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
     Matrix encoder_input = embeddings.add(pos_enc);
 
     // Pass through encoder layers (REAL IMPLEMENTATION)
-    Matrix encoder_output(encoder_input.getRows(), encoder_input.getCols());
-    Matrix src_mask; // For now, no masking
-    encoder.forward(encoder_input, src_mask, encoder_output);
+    Matrix current_output = encoder_input; // Start with input
+    
+    // Pass through each encoder layer
+    for (auto& layer : encoder_layers) {
+        current_output = layer.forward(current_output); // No src_mask for now
+    }
 
-    return encoder_output;
+    return current_output;
 }
 
 Matrix Transformer::decode(const std::vector<int> &target_tokens,
