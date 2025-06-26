@@ -3,6 +3,9 @@
 #include <iostream>
 #include <cmath>
 #include <stdexcept>
+#include <cstdio>
+#include <vector>
+#include <algorithm>
 
 __global__ void matrixAddKernel(float *a, float *b, float *result, int size)
 {
@@ -70,11 +73,40 @@ Matrix Matrix::add(const Matrix &other) const
     Matrix result(rows, cols);
     int size = rows * cols;
 
+    // DEBUG: Check input matrices before addition
+    std::vector<float> debug_a(std::min(10, size));
+    std::vector<float> debug_b(std::min(10, size));
+    
+    cudaMemcpy(debug_a.data(), data, debug_a.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(debug_b.data(), other.data, debug_b.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    printf("[MATRIX_ADD_DEBUG] Matrix A first 5 values: ");
+    for (int i = 0; i < std::min(5, (int)debug_a.size()); i++) {
+        printf("%.6f ", debug_a[i]);
+    }
+    printf("\n");
+    
+    printf("[MATRIX_ADD_DEBUG] Matrix B first 5 values: ");
+    for (int i = 0; i < std::min(5, (int)debug_b.size()); i++) {
+        printf("%.6f ", debug_b[i]);
+    }
+    printf("\n");
+
     int blockSize = 256;
     int numBlocks = (size + blockSize - 1) / blockSize;
 
     matrixAddKernel<<<numBlocks, blockSize>>>(data, other.data, result.data, size);
     cudaDeviceSynchronize();
+
+    // DEBUG: Check result after addition
+    std::vector<float> debug_result(std::min(10, size));
+    cudaMemcpy(debug_result.data(), result.data, debug_result.size() * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    printf("[MATRIX_ADD_DEBUG] Result first 5 values: ");
+    for (int i = 0; i < std::min(5, (int)debug_result.size()); i++) {
+        printf("%.6f ", debug_result[i]);
+    }
+    printf("\n");
 
     return result;
 }
