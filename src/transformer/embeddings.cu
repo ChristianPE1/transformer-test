@@ -211,34 +211,50 @@ Matrix PositionalEncoding::getEncoding(int seq_len)
 {
     Matrix result(seq_len, d_model);
 
-    // Copy relevant portion of positional encodings
-    cudaMemcpy(result.getData(), pos_encodings,
-               seq_len * d_model * sizeof(float), cudaMemcpyDeviceToDevice);
+    // TEMPORARY FIX: Generate positional encoding on CPU to ensure it works
+    std::vector<float> pos_enc_cpu(seq_len * d_model);
+    
+    for (int pos = 0; pos < seq_len; pos++) {
+        for (int i = 0; i < (int)d_model; i++) {
+            if (i % 2 == 0) {
+                // Even indices: sin
+                float div_term = pow(10000.0f, (float)i / (float)d_model);
+                float angle = (float)pos / div_term;
+                pos_enc_cpu[pos * d_model + i] = sin(angle);
+            } else {
+                // Odd indices: cos
+                float div_term = pow(10000.0f, (float)(i-1) / (float)d_model);
+                float angle = (float)pos / div_term;
+                pos_enc_cpu[pos * d_model + i] = cos(angle);
+            }
+        }
+    }
+    
+    // Copy CPU-generated positional encoding to GPU
+    cudaMemcpy(result.getData(), pos_enc_cpu.data(), 
+               seq_len * d_model * sizeof(float), cudaMemcpyHostToDevice);
 
     // DEBUG: Verify positional encoding values
-    std::vector<float> pos_debug(std::min(20, seq_len * (int)d_model));
-    result.copyToHost(pos_debug);
-    
     float pos_sum = 0.0f;
     int non_zero_pos = 0;
     float pos_max = -1e10f, pos_min = 1e10f;
     
-    for (int i = 0; i < pos_debug.size(); ++i) {
-        if (abs(pos_debug[i]) > 1e-8f) {
+    for (int i = 0; i < std::min(20, seq_len * (int)d_model); ++i) {
+        if (abs(pos_enc_cpu[i]) > 1e-8f) {
             non_zero_pos++;
-            pos_sum += pos_debug[i];
-            pos_max = std::max(pos_max, pos_debug[i]);
-            pos_min = std::min(pos_min, pos_debug[i]);
+            pos_sum += pos_enc_cpu[i];
+            pos_max = std::max(pos_max, pos_enc_cpu[i]);
+            pos_min = std::min(pos_min, pos_enc_cpu[i]);
         }
     }
     
-    std::cout << "[POS_ENC] Stats: " << non_zero_pos << "/" << pos_debug.size() 
+    std::cout << "[POS_ENC] Stats: " << non_zero_pos << "/" << std::min(20, seq_len * (int)d_model)
               << " non-zero, sum=" << pos_sum 
               << ", range=[" << pos_min << ", " << pos_max << "]" << std::endl;
     
     std::cout << "[POS_ENC] First 10 values: ";
-    for (int i = 0; i < std::min(10, (int)pos_debug.size()); ++i) {
-        std::cout << std::fixed << std::setprecision(6) << pos_debug[i] << " ";
+    for (int i = 0; i < std::min(10, seq_len * (int)d_model); ++i) {
+        std::cout << std::fixed << std::setprecision(6) << pos_enc_cpu[i] << " ";
     }
     std::cout << std::endl;
 
