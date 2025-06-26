@@ -191,8 +191,15 @@ void Linear::updateWeights(float learning_rate) {
     std::cout << "[LINEAR] Max gradients - weights: " << max_grad_weight 
               << ", bias: " << max_grad_bias << std::endl;
     
-    // Apply gradient descent with smaller learning rate if gradients are large
+    // Apply gradient descent with adaptive learning rate
     float effective_lr = learning_rate;
+    
+    // For output projection layers, use higher learning rate to break symmetry
+    if (output_dim > 500) {
+        effective_lr *= 3.0f; // Higher learning rate for output projection
+        std::cout << "[LINEAR] Output projection - using 3x learning rate: " << effective_lr << std::endl;
+    }
+    
     if (max_grad_weight > 0.5f || max_grad_bias > 0.5f) {
         effective_lr *= 0.5f; // Reduce learning rate if gradients are large
         std::cout << "[LINEAR] Large gradients detected, reducing lr to " << effective_lr << std::endl;
@@ -202,15 +209,15 @@ void Linear::updateWeights(float learning_rate) {
     for (size_t i = 0; i < h_weights.size(); ++i) {
         h_weights[i] -= effective_lr * h_grad_weights[i];
         
-        // Clamp weights to prevent them from becoming too large
-        h_weights[i] = std::max(-2.0f, std::min(2.0f, h_weights[i]));
+        // Less restrictive weight clipping - only prevent extreme values
+        h_weights[i] = std::max(-5.0f, std::min(5.0f, h_weights[i]));
     }
     
     for (size_t i = 0; i < h_bias.size(); ++i) {
         h_bias[i] -= effective_lr * h_grad_bias[i];
         
-        // Clamp bias values
-        h_bias[i] = std::max(-1.0f, std::min(1.0f, h_bias[i]));
+        // Less restrictive bias clipping
+        h_bias[i] = std::max(-3.0f, std::min(3.0f, h_bias[i]));
     }
     
     // Copy back to device
@@ -238,31 +245,27 @@ Linear::~Linear() {
 
 // Initialize weights and bias
 void Linear::initialize() {
-    // Initialize weights with Xavier/Glorot initialization (better for final layer)
+    // Initialize weights with Xavier/Glorot initialization
     std::vector<float> weight_data(input_dim * output_dim);
     std::vector<float> bias_data(output_dim, 0.0f); // Initialize bias to zero
     
-    // Use Xavier initialization - more conservative for final layers
-    float scale = sqrt(1.0f / input_dim); // Conservative initialization
+    // Use Xavier initialization
+    float scale = sqrt(2.0f / (input_dim + output_dim)); // Xavier initialization
     
-    // For output projection layers (large output_dim), use even smaller scale
+    // For output projection layers (large output_dim), use LARGER scale to increase variance
     if (output_dim > 500) {  // This is likely the output projection to vocab
-        scale *= 0.1f;  // Much smaller initialization for output layer
-        std::cout << "[LINEAR] Output projection layer detected, using extra small scale" << std::endl;
+        scale *= 3.0f;  // INCREASE scale for output layer to get more diverse predictions
+        std::cout << "[LINEAR] Output projection layer detected, using LARGER scale for better variance" << std::endl;
     }
     
-    // Clip scale to prevent extreme values
-    scale = std::min(scale, 0.05f); // Maximum scale of 0.05
+    // Reasonable scale range
+    scale = std::max(0.01f, std::min(scale, 0.2f)); // Allow larger scales
     
     // Random initialization for weights
     srand(time(nullptr)); // Seed for reproducibility
     for (size_t i = 0; i < weight_data.size(); ++i) {
         // Generate random value in range [-scale, scale]
         float rand_val = ((float)rand() / RAND_MAX - 0.5f) * 2.0f * scale;
-        
-        // Extra clamp to prevent extreme values
-        rand_val = std::max(-0.02f, std::min(0.02f, rand_val));
-        
         weight_data[i] = rand_val;
     }
     
