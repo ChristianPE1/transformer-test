@@ -91,7 +91,7 @@ Matrix Embedding::forward(const std::vector<int> &input_tokens)
     std::cout << std::endl;
 
     // DEBUG: Check if output is zero
-    std::vector<float> sample_output(std::min(10, seq_len * d_model));
+    std::vector<float> sample_output(std::min(10, (int)(seq_len * d_model)));
     output.copyToHost(sample_output);
     std::cout << "[EMBEDDING] Sample output: ";
     for (int i = 0; i < std::min(5, (int)sample_output.size()); ++i) {
