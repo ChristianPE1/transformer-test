@@ -217,13 +217,13 @@ Matrix PositionalEncoding::getEncoding(int seq_len)
     for (int pos = 0; pos < seq_len; pos++) {
         for (int i = 0; i < (int)d_model; i++) {
             if (i % 2 == 0) {
-                // Even indices: sin(pos / 10000^(2i/d_model))
-                float div_term = pow(10000.0f, (2.0f * (i/2)) / (float)d_model);
+                // Even indices: sin(pos / 10000^(i/d_model))
+                float div_term = pow(10000.0f, (float)i / (float)d_model);
                 float angle = (float)pos / div_term;
                 pos_enc_cpu[pos * d_model + i] = sin(angle);
             } else {
-                // Odd indices: cos(pos / 10000^(2i/d_model)) - same div_term as previous even index
-                float div_term = pow(10000.0f, (2.0f * ((i-1)/2)) / (float)d_model);
+                // Odd indices: cos(pos / 10000^((i-1)/d_model))
+                float div_term = pow(10000.0f, (float)(i-1) / (float)d_model);
                 float angle = (float)pos / div_term;
                 pos_enc_cpu[pos * d_model + i] = cos(angle);
             }
