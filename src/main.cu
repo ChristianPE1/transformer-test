@@ -181,22 +181,18 @@ int main()
                     // Test generation
                     auto gen = transformer.generate(source_ids, 2, 3, 8);
                     std::cout << "  Test: " << spa_vocab.idsToSentence(gen) << std::endl;
+                    
+                    // Progreso detallado
+                    std::cout << "  === Progreso en época " << (epoch + 1) << " ===" << std::endl;
+                    std::cout << "  ENG: " << eng_vocab.idsToSentence(source_ids) << std::endl;
+                    std::cout << "  ESP: " << spa_vocab.idsToSentence(gen) << std::endl;
+                    std::cout << "  ================================" << std::endl;
                 }
                 
                 // Early stopping si no hay mejora
                 if (no_improvement_count >= patience) {
                     std::cout << "Early stopping triggered (no improvement for " << patience << " epochs)" << std::endl;
                     break;
-                }
-            }
-                
-                // Probar generación cada 5 épocas para ver progreso
-                if ((epoch + 1) % 5 == 0) {
-                    std::cout << "  === Progreso en época " << (epoch + 1) << " ===" << std::endl;
-                    auto gen = transformer.generate(source_ids, 2, 3, 8);
-                    std::cout << "  ENG: " << eng_vocab.idsToSentence(source_ids) << std::endl;
-                    std::cout << "  ESP: " << spa_vocab.idsToSentence(gen) << std::endl;
-                    std::cout << "  ================================" << std::endl;
                 }
             }
             
