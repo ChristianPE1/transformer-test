@@ -120,36 +120,22 @@ int main()
             // Configuración de entrenamiento optimizada
             int epochs = 50;  // Menos épocas, pero más eficaces
             int batch_size = 16;   // Batch más grande para mejor eficiencia
-            float base_learning_rate = 0.001f;  // Learning rate más conservador
+            float base_learning_rate = 0.01f;  // VOLVEMOS AL LR QUE FUNCIONABA ANTES
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
+            // Configuración de entrenamiento simplificada
             std::cout << "  Batch size: " << batch_size << std::endl;
-            std::cout << "  Base Learning rate: " << base_learning_rate << std::endl;
+            std::cout << "  Learning rate: " << base_learning_rate << std::endl;
             
-            // Crear componentes de entrenamiento
+            // Crear componentes de entrenamiento (SIMPLE)
             CrossEntropyLoss loss_fn;
-            SGD optimizer(base_learning_rate, 0.9f);  // Added momentum = 0.9
+            SGD optimizer(base_learning_rate, 0.0f);  // Sin momentum - más simple
             Trainer trainer(transformer, optimizer, loss_fn, batch_size, epochs);
             
-            // Variables para tracking del progreso
-            float best_loss = 1000.0f;
-            int no_improvement_count = 0;
-            const int patience = 10; // Early stopping patience
-            
-            // Bucle de entrenamiento con learning rate schedule
+            // Bucle de entrenamiento SIMPLE
             for (int epoch = 0; epoch < epochs; epoch++) {
-                // Learning rate schedule: reducir si no hay mejora
-                float current_lr = base_learning_rate;
-                if (epoch > 10) {
-                    current_lr = base_learning_rate * std::pow(0.9f, (epoch - 10) / 5);
-                }
-                
-                // Actualizar learning rate en el optimizer
-                optimizer.setLearningRate(current_lr);
-                
-                std::cout << "\nÉpoca " << (epoch + 1) << "/" << epochs;
-                std::cout << " [LR: " << current_lr << "]" << std::endl;
+                std::cout << "\nÉpoca " << (epoch + 1) << "/" << epochs << std::endl;
                 
                 // Obtener batch de entrenamiento
                 auto train_batch = dataset.getBatch(batch_size, true);
@@ -162,37 +148,17 @@ int main()
                     target_batches.push_back(sample.second);
                 }
                 
-                // Entrenar con menos logging
-                trainer.setVerbose(epoch % 10 == 0); // Solo log cada 10 épocas
+                // Entrenar (sin verbose para ir más rápido)
+                trainer.setVerbose(false);
                 float epoch_loss = trainer.train(source_batches, target_batches);
                 
-                // Early stopping check
-                if (epoch_loss < best_loss) {
-                    best_loss = epoch_loss;
-                    no_improvement_count = 0;
-                } else {
-                    no_improvement_count++;
-                }
-                
-                // Progress report cada 5 épocas
-                if ((epoch + 1) % 5 == 0) {
-                    std::cout << "  Loss: " << epoch_loss << " (Best: " << best_loss << ")" << std::endl;
+                // Progress report cada 10 épocas para ir más rápido
+                if ((epoch + 1) % 10 == 0) {
+                    std::cout << "  Loss: " << epoch_loss << std::endl;
                     
-                    // Test generation
-                    auto gen = transformer.generate(source_ids, 2, 3, 8);
+                    // Test generation rápido
+                    auto gen = transformer.generate(source_ids, 2, 3, 5); // Menos tokens
                     std::cout << "  Test: " << spa_vocab.idsToSentence(gen) << std::endl;
-                    
-                    // Progreso detallado
-                    std::cout << "  === Progreso en época " << (epoch + 1) << " ===" << std::endl;
-                    std::cout << "  ENG: " << eng_vocab.idsToSentence(source_ids) << std::endl;
-                    std::cout << "  ESP: " << spa_vocab.idsToSentence(gen) << std::endl;
-                    std::cout << "  ================================" << std::endl;
-                }
-                
-                // Early stopping si no hay mejora
-                if (no_improvement_count >= patience) {
-                    std::cout << "Early stopping triggered (no improvement for " << patience << " epochs)" << std::endl;
-                    break;
                 }
             }
             

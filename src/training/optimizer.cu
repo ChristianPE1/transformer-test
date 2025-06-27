@@ -47,8 +47,8 @@ void SGD::step(float* params, float* grads, size_t size) {
     int blockSize = 256;
     int numBlocks = (size + blockSize - 1) / blockSize;
     
-    // Clip gradients to prevent explosion
-    clipGradientsKernel<<<numBlocks, blockSize>>>(grads, 5.0f, size);
+    // TEMPORARILY DISABLE gradient clipping to see if it's the problem
+    // clipGradientsKernel<<<numBlocks, blockSize>>>(grads, 5.0f, size);
     
     if (momentum_factor > 0.0f) {
         // Initialize momentum buffer if needed
