@@ -24,112 +24,38 @@ public:
         
         double total_loss = 0.0;
         
-        // Debug predictions
-        std::vector<float> pred_check;
-        predictions.copyToHost(pred_check);
-        
-        bool has_nan = false, has_inf = false;
-        float min_pred = pred_check[0], max_pred = pred_check[0];
-        for (size_t i = 0; i < pred_check.size(); ++i) {
-            if (std::isnan(pred_check[i])) has_nan = true;
-            if (std::isinf(pred_check[i])) has_inf = true;
-            min_pred = std::min(min_pred, pred_check[i]);
-            max_pred = std::max(max_pred, pred_check[i]);
-        }
-        
-        std::cout << "[LOSS] Predictions range: [" << min_pred << ", " << max_pred << "]";
-        if (has_nan) std::cout << " [HAS NaN!]";
-        if (has_inf) std::cout << " [HAS INF!]";
-        
-        // Calculate prediction diversity (how spread out the predictions are)
-        float pred_variance = 0.0f;
-        float pred_mean = 0.0f;
-        for (size_t i = 0; i < pred_check.size(); ++i) {
-            pred_mean += pred_check[i];
-        }
-        pred_mean /= pred_check.size();
-        
-        for (size_t i = 0; i < pred_check.size(); ++i) {
-            pred_variance += (pred_check[i] - pred_mean) * (pred_check[i] - pred_mean);
-        }
-        pred_variance /= pred_check.size();
-        
-        std::cout << " Var:" << std::setprecision(3) << pred_variance;
-        std::cout << std::endl;
-        
-        if (has_nan || has_inf || max_pred > 50.0f || min_pred < -50.0f) {
-            std::cout << "[LOSS] ERROR: Invalid predictions detected, returning large loss" << std::endl;
-            return 100.0; // Return a large but finite loss
-        }
-        
-        // Calcular cross-entropy real con mejor estabilización numérica y label smoothing
-        const float label_smoothing = 0.1f;  // 10% label smoothing
-        const float true_prob = 1.0f - label_smoothing;
-        const float smooth_prob = label_smoothing / (num_classes - 1);
-        
+        // SIMPLIFIED CROSS-ENTROPY - more stable and faster
         for (int i = 0; i < batch_size; i++) {
             int target_class = static_cast<int>(targets.getElement(i, 0));
             if (target_class >= 0 && target_class < num_classes) {
-                // Encontrar el valor máximo para estabilización numérica
+                // Get prediction for target class
+                float prediction = predictions.getElement(i, target_class);
+                
+                // Simple stabilized cross-entropy: -log(softmax(pred))
+                // Find max for numerical stability
                 float max_val = predictions.getElement(i, 0);
                 for (int j = 1; j < num_classes; j++) {
                     max_val = std::max(max_val, predictions.getElement(i, j));
                 }
                 
-                // Calcular suma de exponenciales estabilizada
+                // Compute log-sum-exp
                 double sum_exp = 0.0;
                 for (int j = 0; j < num_classes; j++) {
-                    double exp_val = exp(predictions.getElement(i, j) - max_val);
-                    if (std::isfinite(exp_val)) {
-                        sum_exp += exp_val;
-                    }
+                    sum_exp += exp(predictions.getElement(i, j) - max_val);
                 }
                 
-                // Evitar log(0) y valores extremos
-                if (sum_exp <= 1e-10) {
-                    sum_exp = 1e-10;
-                }
-                
-                // Calcular loss con label smoothing
-                double batch_loss = 0.0;
-                for (int j = 0; j < num_classes; j++) {
-                    double log_prob = (predictions.getElement(i, j) - max_val) - log(sum_exp);
-                    
-                    double target_prob;
-                    if (j == target_class) {
-                        target_prob = true_prob;
-                    } else {
-                        target_prob = smooth_prob;
-                        
-                        // Penalización extra para <eos> (token 3) en posiciones tempranas
-                        if (j == 3 && i < 2) {
-                            target_prob *= 0.1f;  // Reducir probabilidad por 10x
-                        }
-                    }
-                    
-                    if (std::isfinite(log_prob)) {
-                        batch_loss -= target_prob * log_prob;
-                    }
-                }
-                
-                // Verificar que el resultado sea finito
-                if (std::isfinite(batch_loss)) {
-                    total_loss += batch_loss;
-                } else {
-                    std::cout << "[LOSS] WARNING: Non-finite loss for sample " << i << std::endl;
-                    total_loss += 10.0; // Penalizar con una pérdida alta pero finita
-                }
+                // Cross-entropy loss: -log(softmax(target))
+                double log_prob = (prediction - max_val) - log(sum_exp + 1e-8);
+                total_loss -= log_prob;
             }
         }
         
         double avg_loss = total_loss / batch_size;
         
-        std::cout << "[LOSS] Calculated loss: " << avg_loss;
-        if (!std::isfinite(avg_loss)) {
-            std::cout << " [NOT FINITE - CLAMPING]";
-            avg_loss = 100.0; // Clamp to a large but finite value
+        // Clamp to reasonable range
+        if (!std::isfinite(avg_loss) || avg_loss > 20.0) {
+            avg_loss = 20.0;
         }
-        std::cout << std::endl;
         
         return avg_loss;
     }

@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 #include "utils/matrix.cuh"
 #include <cstdlib>
+#include <vector>
 
 class MultiHeadAttention {
 public:
@@ -35,6 +36,9 @@ private:
     Matrix grad_W_K;
     Matrix grad_W_V;
     Matrix grad_W_O;
+    
+    // Store attention weights for backward pass
+    std::vector<float> last_attention_weights;
 };
 
 #endif // ATTENTION_CUH

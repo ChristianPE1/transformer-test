@@ -120,7 +120,7 @@ int main()
             // Configuración de entrenamiento optimizada
             int epochs = 50;  // Menos épocas, pero más eficaces
             int batch_size = 16;   // Batch más grande para mejor eficiencia
-            float base_learning_rate = 0.01f;  // VOLVEMOS AL LR QUE FUNCIONABA ANTES
+            float base_learning_rate = 0.05f;  // AUMENTAR LR para aprendizaje más rápido
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -152,8 +152,8 @@ int main()
                 trainer.setVerbose(false);
                 float epoch_loss = trainer.train(source_batches, target_batches);
                 
-                // Progress report cada 10 épocas para ir más rápido
-                if ((epoch + 1) % 10 == 0) {
+                // Progress report cada 5 épocas para monitorear mejor
+                if ((epoch + 1) % 5 == 0) {
                     std::cout << "  Loss: " << epoch_loss << std::endl;
                     
                     // Test generation rápido
