@@ -152,8 +152,8 @@ void Linear::updateWeights(float learning_rate) {
         std::cout << "[LINEAR] WARNING: Cleaned NaN/Inf gradients" << std::endl;
     }
     
-    std::cout << "[LINEAR] Max gradients - weights: " << max_grad_weight 
-              << ", bias: " << max_grad_bias << std::endl;
+    // std::cout << "[LINEAR] Max gradients - weights: " << max_grad_weight 
+    //           << ", bias: " << max_grad_bias << std::endl;
     
     // Apply gradient descent with adaptive learning rate
     float effective_lr = learning_rate;
@@ -192,7 +192,7 @@ void Linear::updateWeights(float learning_rate) {
     stored_grad_weights = Matrix(0, 0);
     stored_grad_bias = Matrix(0, 0);
     
-    std::cout << "[LINEAR] Weights updated" << std::endl;
+    // std::cout << "[LINEAR] Weights updated" << std::endl;
 }
 
 // Constructor

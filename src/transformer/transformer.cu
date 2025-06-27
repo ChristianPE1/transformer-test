@@ -46,7 +46,7 @@ Transformer::Transformer(size_t input_vocab_size, size_t target_vocab_size,size_
 
 Matrix Transformer::encode(const std::vector<int> &input_tokens)
 {
-    std::cout << "[ENCODER] Starting encode with " << input_tokens.size() << " tokens" << std::endl;
+    // std::cout << "[ENCODER] Starting encode with " << input_tokens.size() << " tokens" << std::endl;
     
     // Get embeddings
     Matrix embeddings = input_embedding.forward(input_tokens);
@@ -64,8 +64,8 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
         }
     }
     
-    std::cout << "[ENCODER] Embeddings stats: " << non_zero_embeds << "/" << embed_check.size() 
-              << " non-zero, sum=" << embed_sum << std::endl;
+    // std::cout << "[ENCODER] Embeddings stats: " << non_zero_embeds << "/" << embed_check.size() 
+    //           << " non-zero, sum=" << embed_sum << std::endl;
     
     if (non_zero_embeds == 0) {
         std::cout << "[ENCODER] CRITICAL ERROR: All embeddings are zero!" << std::endl;
@@ -76,7 +76,7 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
     std::vector<float> embed_data;
     embeddings.copyToHost(embed_data);
     float scale = sqrt(d_model);
-    std::cout << "[ENCODER] Scaling embeddings by " << scale << std::endl;
+    // std::cout << "[ENCODER] Scaling embeddings by " << scale << std::endl;
     for (auto &val : embed_data)
     {
         val *= scale;
@@ -168,14 +168,14 @@ Matrix Transformer::encode(const std::vector<int> &input_tokens)
         current_output = layer_output;
     }
 
-    std::cout << "[ENCODER] Encoding complete" << std::endl;
+    // std::cout << "[ENCODER] Encoding complete" << std::endl;
     return current_output;
 }
 
 Matrix Transformer::decode(const std::vector<int> &target_tokens,
                            const Matrix &encoder_output)
 {
-    std::cout << "[DECODER] Starting decode with " << target_tokens.size() << " tokens" << std::endl;
+    // std::cout << "[DECODER] Starting decode with " << target_tokens.size() << " tokens" << std::endl;
     
     // Get target embeddings
     Matrix embeddings = target_embedding.forward(target_tokens);
@@ -205,7 +205,7 @@ Matrix Transformer::decode(const std::vector<int> &target_tokens,
     std::vector<float> embed_data;
     embeddings.copyToHost(embed_data);
     float scale = sqrt(d_model);
-    std::cout << "[DECODER] Scaling target embeddings by " << scale << std::endl;
+    // std::cout << "[DECODER] Scaling target embeddings by " << scale << std::endl;
     for (auto &val : embed_data)
     {
         val *= scale;
@@ -299,7 +299,7 @@ Matrix Transformer::decode(const std::vector<int> &target_tokens,
         current_output = layer_output;
     }
 
-    std::cout << "[DECODER] Decoding complete" << std::endl;
+    // std::cout << "[DECODER] Decoding complete" << std::endl;
     return current_output;
 }
 
@@ -351,15 +351,16 @@ Matrix Transformer::applyCrossAttention(const Matrix& decoder_input, const Matri
 Matrix Transformer::forward(const std::vector<int> &source_tokens,
                             const std::vector<int> &target_tokens)
 {
-    std::cout << "[DEBUG] Forward - source: " << source_tokens.size() 
-              << " tokens, target: " << target_tokens.size() << " tokens" << std::endl;
+    // Reduce logging for cleaner output
+    // std::cout << "[DEBUG] Forward - source: " << source_tokens.size() 
+    //           << " tokens, target: " << target_tokens.size() << " tokens" << std::endl;
     
     // Store target tokens for later gradient updates
     last_target_tokens = target_tokens;
     
     // Encode source sequence
     Matrix encoder_output = encode(source_tokens);
-    std::cout << "[DEBUG] Encode OK - shape: " << encoder_output.getRows() << "x" << encoder_output.getCols() << std::endl;
+    // std::cout << "[DEBUG] Encode OK - shape: " << encoder_output.getRows() << "x" << encoder_output.getCols() << std::endl;
     
     // DEBUG: Check encoder output values
     std::vector<float> enc_sample;
@@ -374,7 +375,7 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
 
     // Decode target sequence
     Matrix decoder_output = decode(target_tokens, encoder_output);
-    std::cout << "[DEBUG] Decode OK - shape: " << decoder_output.getRows() << "x" << decoder_output.getCols() << std::endl;
+    // std::cout << "[DEBUG] Decode OK - shape: " << decoder_output.getRows() << "x" << decoder_output.getCols() << std::endl;
     
     // DEBUG: Check decoder output values
     std::vector<float> dec_sample;
@@ -389,7 +390,7 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
     
     // Project to vocabulary space
     Matrix output = output_projection.forward(decoder_output);
-    std::cout << "[DEBUG] Output projection - shape: " << output.getRows() << "x" << output.getCols() << std::endl;
+    // std::cout << "[DEBUG] Output projection - shape: " << output.getRows() << "x" << output.getCols() << std::endl;
     
     // DEBUG: Check final output values and fix any NaN/Inf
     std::vector<float> out_sample;
@@ -442,7 +443,7 @@ Matrix Transformer::forward(const std::vector<int> &source_tokens,
         }
     }
     
-    std::cout << "[DEBUG] Forward completed!" << std::endl;
+    // std::cout << "[DEBUG] Forward completed!" << std::endl;
     return output;
 }
 

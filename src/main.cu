@@ -152,14 +152,15 @@ int main()
                 trainer.setVerbose(false);
                 float epoch_loss = trainer.train(source_batches, target_batches);
                 
-                // Progress report cada 5 épocas para monitorear mejor
-                if ((epoch + 1) % 5 == 0) {
-                    std::cout << "  Loss: " << epoch_loss << std::endl;
-                    
-                    // Test generation rápido
+                // Progress report CADA ÉPOCA para ver claramente el progreso del loss
+                std::cout << "Epoca " << (epoch + 1) << "/" << epochs << " - Loss: " << std::fixed << std::setprecision(4) << epoch_loss;
+                
+                // Test generation cada 10 épocas para verificar traducción
+                if ((epoch + 1) % 10 == 0) {
                     auto gen = transformer.generate(source_ids, 2, 3, 5); // Menos tokens
-                    std::cout << "  Test: " << spa_vocab.idsToSentence(gen) << std::endl;
+                    std::cout << " | Test: " << spa_vocab.idsToSentence(gen);
                 }
+                std::cout << std::endl;
             }
             
             std::cout << "\n¡Entrenamiento completado!" << std::endl;
