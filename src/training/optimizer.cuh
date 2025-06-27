@@ -10,6 +10,7 @@ public:
     Optimizer(float learning_rate);
     virtual void step(float* params, float* grads, size_t size) = 0;
     float getLearningRate() const { return learning_rate; }
+    void setLearningRate(float lr) { learning_rate = lr; }  // NEW METHOD
 
 protected:
     float learning_rate;

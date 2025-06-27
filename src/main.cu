@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath>
 #include <cuda_runtime.h>
 #include "data/dataset.cuh"
 #include "data/vocab.cuh"
@@ -114,26 +115,41 @@ int main()
             std::cout << "Generated: " << spa_vocab.idsToSentence(generated) << std::endl;
             
             // AGREGAR ENTRENAMIENTO AQUÍ:
-            std::cout << "\n=== Iniciando Entrenamiento ===" << std::endl;
+            std::cout << "\n=== Iniciando Entrenamiento Optimizado ===" << std::endl;
             
-            // Configuración de entrenamiento
-            int epochs = 100;  // Prueba rápida con las mejoras implementadas
-            int batch_size = 8;   // Batch más pequeño para gradientes más estables
-            float learning_rate = 0.02f;  // Learning rate más alto - el modelo aprende lento pero estable
+            // Configuración de entrenamiento optimizada
+            int epochs = 50;  // Menos épocas, pero más eficaces
+            int batch_size = 16;   // Batch más grande para mejor eficiencia
+            float base_learning_rate = 0.001f;  // Learning rate más conservador
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
             std::cout << "  Batch size: " << batch_size << std::endl;
-            std::cout << "  Learning rate: " << learning_rate << std::endl;
+            std::cout << "  Base Learning rate: " << base_learning_rate << std::endl;
             
             // Crear componentes de entrenamiento
             CrossEntropyLoss loss_fn;
-            SGD optimizer(learning_rate, 0.9f);  // Added momentum = 0.9
+            SGD optimizer(base_learning_rate, 0.9f);  // Added momentum = 0.9
             Trainer trainer(transformer, optimizer, loss_fn, batch_size, epochs);
             
-            // Bucle de entrenamiento
+            // Variables para tracking del progreso
+            float best_loss = 1000.0f;
+            int no_improvement_count = 0;
+            const int patience = 10; // Early stopping patience
+            
+            // Bucle de entrenamiento con learning rate schedule
             for (int epoch = 0; epoch < epochs; epoch++) {
-                std::cout << "\nÉpoca " << (epoch + 1) << "/" << epochs << std::endl;
+                // Learning rate schedule: reducir si no hay mejora
+                float current_lr = base_learning_rate;
+                if (epoch > 10) {
+                    current_lr = base_learning_rate * std::pow(0.9f, (epoch - 10) / 5);
+                }
+                
+                // Actualizar learning rate en el optimizer
+                optimizer.setLearningRate(current_lr);
+                
+                std::cout << "\nÉpoca " << (epoch + 1) << "/" << epochs;
+                std::cout << " [LR: " << current_lr << "]" << std::endl;
                 
                 // Obtener batch de entrenamiento
                 auto train_batch = dataset.getBatch(batch_size, true);
@@ -146,8 +162,33 @@ int main()
                     target_batches.push_back(sample.second);
                 }
                 
-                // Entrenar
-                trainer.train(source_batches, target_batches);
+                // Entrenar con menos logging
+                trainer.setVerbose(epoch % 10 == 0); // Solo log cada 10 épocas
+                float epoch_loss = trainer.train(source_batches, target_batches);
+                
+                // Early stopping check
+                if (epoch_loss < best_loss) {
+                    best_loss = epoch_loss;
+                    no_improvement_count = 0;
+                } else {
+                    no_improvement_count++;
+                }
+                
+                // Progress report cada 5 épocas
+                if ((epoch + 1) % 5 == 0) {
+                    std::cout << "  Loss: " << epoch_loss << " (Best: " << best_loss << ")" << std::endl;
+                    
+                    // Test generation
+                    auto gen = transformer.generate(source_ids, 2, 3, 8);
+                    std::cout << "  Test: " << spa_vocab.idsToSentence(gen) << std::endl;
+                }
+                
+                // Early stopping si no hay mejora
+                if (no_improvement_count >= patience) {
+                    std::cout << "Early stopping triggered (no improvement for " << patience << " epochs)" << std::endl;
+                    break;
+                }
+            }
                 
                 // Probar generación cada 5 épocas para ver progreso
                 if ((epoch + 1) % 5 == 0) {

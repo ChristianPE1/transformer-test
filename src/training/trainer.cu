@@ -14,22 +14,26 @@ Matrix vectorToOneHotMatrix(const std::vector<int>& indices, int num_classes) {
     return mat;
 }
 
-void Trainer::train(const std::vector<std::vector<int>>& source_batches, const std::vector<std::vector<int>>& target_batches) {
+float Trainer::train(const std::vector<std::vector<int>>& source_batches, const std::vector<std::vector<int>>& target_batches) {
     int num_classes = model.getTargetVocabSize(); 
     
-    std::cout << "  Procesando " << source_batches.size() << " muestras..." << std::endl;
-    std::cout << "  Vocabulario objetivo: " << num_classes << " clases" << std::endl;
+    if (verbose) {
+        std::cout << "  Procesando " << source_batches.size() << " muestras..." << std::endl;
+        std::cout << "  Vocabulario objetivo: " << num_classes << " clases" << std::endl;
+    }
     
     double total_loss = 0.0;
     int processed_samples = 0;
     
     for (size_t i = 0; i < source_batches.size(); ++i) {
-        std::cout << "    Muestra " << (i+1) << "/" << source_batches.size() << ": " << std::flush;
+        if (verbose) {
+            std::cout << "    Muestra " << (i+1) << "/" << source_batches.size() << ": " << std::flush;
+        }
         
         // 1. Forward pass
         try {
             Matrix output = model.forward(source_batches[i], target_batches[i]);
-            std::cout << "FWD✓ " << std::flush;
+            if (verbose) std::cout << "FWD✓ " << std::flush;
             
             // Target simplificado
             int target_length = target_batches[i].size();
@@ -38,50 +42,57 @@ void Trainer::train(const std::vector<std::vector<int>>& source_batches, const s
                 target.setElement(j, 0, target_batches[i][j]);
             }
             
-            // 2. Loss con penalización por EOS temprano
+            // 2. Loss con penalización por EOS temprano (reducida)
             double raw_loss = loss_fn.forward(output, target);
             
-            // Aplicar penalización si el modelo predice EOS en posiciones tempranas
-            double eos_penalty = calculateEOSPenalty(output, target_batches[i]);
+            // Aplicar penalización REDUCIDA si el modelo predice EOS en posiciones tempranas
+            double eos_penalty = calculateEOSPenalty(output, target_batches[i]) * 0.1; // Reducir penalización
             double final_loss = raw_loss + eos_penalty;
             
-            if (eos_penalty > 0.0) {
+            if (verbose && eos_penalty > 0.0) {
                 std::cout << " [EOS penalty: " << std::fixed << std::setprecision(3) << eos_penalty << "]";
             }
             
-            // Calculate adaptive learning rate
-            float current_lr = calculateLearningRate(global_step, final_loss);
+            // Use current learning rate from optimizer
+            float current_lr = optimizer.getLearningRate();
             global_step++;
             
-            std::cout << " Loss: " << std::fixed << std::setprecision(3) << final_loss 
-                      << " (LR: " << std::setprecision(4) << current_lr << ")" << std::flush;
+            if (verbose) {
+                std::cout << " Loss: " << std::fixed << std::setprecision(3) << final_loss 
+                          << " (LR: " << std::setprecision(4) << current_lr << ")" << std::flush;
+            }
             
-            // 3. Backward pass - USAR EL NUEVO SISTEMA
+            // 3. Backward pass
             Matrix grad = loss_fn.backward(output, target);
             
             // BACKWARD PASS COMPLETO DEL TRANSFORMER
-            model.backward(grad, current_lr);  // Use adaptive learning rate
+            model.backward(grad, current_lr);
             
-            std::cout << "[UPDATE] Gradientes aplicados con lr=" << std::fixed << std::setprecision(8) << current_lr;
-            
-            std::cout << " [Updated]" << std::endl;
+            if (verbose) {
+                std::cout << "[UPDATE] Gradientes aplicados con lr=" << std::fixed << std::setprecision(8) << current_lr;
+                std::cout << " [Updated]" << std::endl;
+            }
             
             total_loss += final_loss;
             processed_samples++;
             
         } catch (const std::exception& e) {
-            std::cout << " ERROR: " << e.what() << std::endl;
-            return;
+            if (verbose) std::cout << " ERROR: " << e.what() << std::endl;
+            return total_loss / std::max(1, processed_samples);
         }
         
         // Procesar más muestras para mejor aprendizaje
-        if (i >= 7) { // Aumentado de 2 a 7 para procesar 8 muestras
+        if (i >= 15) { // Procesar todo el batch
             break;
         }
     }
     
     double avg_loss = total_loss / processed_samples;
-    std::cout << "  Promedio de loss: " << std::fixed << std::setprecision(3) << avg_loss << std::endl;
+    if (verbose) {
+        std::cout << "  Promedio de loss: " << std::fixed << std::setprecision(3) << avg_loss << std::endl;
+    }
+    
+    return avg_loss;  // RETURN THE AVERAGE LOSS
 }
 
 Trainer::Trainer(Transformer& model, Optimizer& optimizer, Loss& loss_fn, int batch_size, int epochs)
