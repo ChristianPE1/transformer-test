@@ -122,9 +122,9 @@ int main()
             std::cout << "\n=== Iniciando Entrenamiento Optimizado ===" << std::endl;
             
             // Configuración de entrenamiento optimizada
-            int epochs = 300;  // Más épocas con LR estable
+            int epochs = 100;  // Más épocas para ver mejora
             int batch_size = 16;   // Batch más grande para mejor eficiencia  
-            float base_learning_rate = 0.001f;  // LR mucho menor para evitar overfitting
+            float base_learning_rate = 0.01f;  // AUMENTAR LR significativamente
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;

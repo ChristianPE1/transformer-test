@@ -28,8 +28,8 @@ __global__ void layer_norm_kernel(float *input, float *output, float *gamma, flo
         float stddev = sqrtf(variance + epsilon);
         
         // Additional protection: if stddev is still too small, use a minimum value
-        if (stddev < 1e-8f) {
-            stddev = 1e-8f;
+        if (stddev < 1e-3f) {
+            stddev = 1e-3f;  // Larger minimum to prevent over-normalization
         }
 
         // Normalize and apply gamma and beta
@@ -91,8 +91,8 @@ Matrix LayerNorm::forward(const Matrix &input) {
 
 LayerNorm::LayerNorm(size_t d_model, double epsilon) 
     : d_model(d_model), epsilon(epsilon), gamma(1, d_model, 1.0f), beta(1, d_model, 0.0f) {
-    // Use a larger epsilon for numerical stability
-    if (epsilon < 1e-5) {
-        this->epsilon = 1e-5;  // Minimum epsilon for stability
+    // Use a much larger epsilon for numerical stability and to prevent activation collapse
+    if (epsilon < 1e-3) {
+        this->epsilon = 1e-3;  // Much larger epsilon to prevent over-normalization
     }
 }

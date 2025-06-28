@@ -93,8 +93,8 @@ public:
             
             int target_class = static_cast<int>(targets.getElement(i, 0));
             
-            // Label smoothing parameters
-            const float label_smoothing = 0.1f;  // 10% label smoothing
+            // Label smoothing parameters - REDUCIDO para acelerar aprendizaje inicial
+            const float label_smoothing = 0.05f;  // Reducido de 0.1 a 0.05
             const float true_prob = 1.0f - label_smoothing;
             const float smooth_prob = label_smoothing / (num_classes - 1);
             
