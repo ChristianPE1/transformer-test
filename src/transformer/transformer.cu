@@ -320,12 +320,13 @@ Matrix Transformer::applyCrossAttention(const Matrix& decoder_input, const Matri
             for (int j = 0; j < encoder_len; ++j) {
                 // Peso de atención simple basado en producto punto
                 float attention_score = 0.0f;
-                for (int k = 0; k < std::min(16, d_model); ++k) {
+                for (int k = 0; k < d_model; ++k) {  // USE FULL d_model, not just 16
                     attention_score += decoder_input.getElement(i, k) * encoder_output.getElement(j, k);
                 }
                 
-                // Normalizar y aplicar softmax simple
-                attention_score = exp(attention_score * 0.1f); // Temperature para suavizar
+                // Scale properly and apply softmax
+                attention_score = attention_score / sqrtf((float)d_model);  // Proper scaling
+                attention_score = exp(attention_score); // Remove temperature scaling
                 attention_sum += attention_score;
                 
                 // Agregar contribución ponderada del encoder

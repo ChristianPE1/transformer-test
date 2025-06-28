@@ -238,17 +238,17 @@ void MultiHeadAttention::backward(const Matrix &grad_output, Matrix &grad_query,
             // to compute gradients through softmax and dot products
             for (int k = 0; k < seq_len; ++k) {
                 // Attention gradient affects all query/key pairs
-                h_grad_query[i * d_model + j] += grad_val * 0.1f / seq_len;
-                h_grad_key[k * d_model + j] += grad_val * 0.1f / seq_len;
+                h_grad_query[i * d_model + j] += grad_val / seq_len;
+                h_grad_key[k * d_model + j] += grad_val / seq_len;
             }
             
             // Accumulate gradients for weight matrices
             // grad_W = input^T * grad_output (simplified)
             for (int k = 0; k < d_model; ++k) {
-                grad_W_Q[j * d_model + k] += grad_val * 0.001f;
-                grad_W_K[j * d_model + k] += grad_val * 0.001f;
-                grad_W_V[j * d_model + k] += grad_val * 0.001f;
-                grad_W_O[j * d_model + k] += grad_val * 0.001f;
+                grad_W_Q[j * d_model + k] += grad_val;
+                grad_W_K[j * d_model + k] += grad_val;
+                grad_W_V[j * d_model + k] += grad_val;
+                grad_W_O[j * d_model + k] += grad_val;
             }
         }
     }
