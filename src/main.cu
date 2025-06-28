@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <algorithm>
 #include <cmath>
 #include <cuda_runtime.h>
 #include "data/dataset.cuh"
@@ -166,9 +167,39 @@ int main()
                     target_batches.push_back(sample.second);
                 }
                 
-                // Entrenar (sin verbose para ir más rápido)
-                trainer.setVerbose(false);
-                float epoch_loss = trainer.train(source_batches, target_batches);
+                // Entrenar y calcular pérdida manualmente
+                double total_loss = 0.0;
+                int samples_processed = 0;
+                
+                // Procesar el batch y calcular pérdida promedio
+                for (size_t i = 0; i < std::min(source_batches.size(), static_cast<size_t>(8)); ++i) {
+                    try {
+                        // Forward pass
+                        Matrix output = transformer.forward(source_batches[i], target_batches[i]);
+                        
+                        // Crear target matrix
+                        int target_length = target_batches[i].size();
+                        Matrix target(target_length, 1);
+                        for (int j = 0; j < target_length; ++j) {
+                            target.setElement(j, 0, target_batches[i][j]);
+                        }
+                        
+                        // Calcular pérdida
+                        double sample_loss = loss_fn.forward(output, target);
+                        total_loss += sample_loss;
+                        samples_processed++;
+                        
+                        // Backward pass
+                        Matrix grad = loss_fn.backward(output, target);
+                        transformer.backward(grad, base_learning_rate);
+                        
+                    } catch (const std::exception& e) {
+                        std::cout << "Error en muestra " << i << ": " << e.what() << std::endl;
+                        continue;
+                    }
+                }
+                
+                float epoch_loss = (samples_processed > 0) ? (total_loss / samples_processed) : 0.0f;
                 
                 // Guardar estadísticas
                 if (epoch == 0) initial_loss = epoch_loss;
