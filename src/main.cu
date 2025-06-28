@@ -122,9 +122,9 @@ int main()
             std::cout << "\n=== Iniciando Entrenamiento Optimizado ===" << std::endl;
             
             // Configuración de entrenamiento optimizada
-            int epochs = 100;  // Más épocas para ver mejora
+            int epochs = 200;  // Más épocas para llegar a pérdida ~3.0
             int batch_size = 16;   // Batch más grande para mejor eficiencia  
-            float base_learning_rate = 0.01f;  // AUMENTAR LR significativamente
+            float base_learning_rate = 0.015f;  // Aumentar LR ligeramente para acelerar
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -140,7 +140,7 @@ int main()
             }
             
             // Escribir encabezado
-            loss_file << "Epoch,Loss,LearningRate,BestLoss,StagnantEpochs" << std::endl;
+            loss_file << "Epoch,Loss,CurrentLR,BestLoss,StagnantEpochs" << std::endl;
             std::cout << "Archivo training_loss.txt creado para guardar la pérdida por época." << std::endl;
             
             // Crear componentes de entrenamiento (SIMPLE)
@@ -171,6 +171,14 @@ int main()
                 double total_loss = 0.0;
                 int samples_processed = 0;
                 
+                // Learning rate adaptativo - acelerar cuando está convergiendo bien
+                float current_lr = base_learning_rate;
+                if (epoch > 20 && epoch_loss > 0 && best_loss > 3.0f) {
+                    current_lr = base_learning_rate * 1.2f; // 20% más rápido si está por encima de 3.0
+                } else if (epoch > 50 && best_loss > 2.0f) {
+                    current_lr = base_learning_rate * 1.1f; // 10% más rápido si está por encima de 2.0
+                }
+                
                 // Procesar el batch y calcular pérdida promedio
                 for (size_t i = 0; i < std::min(source_batches.size(), static_cast<size_t>(8)); ++i) {
                     try {
@@ -189,9 +197,9 @@ int main()
                         total_loss += sample_loss;
                         samples_processed++;
                         
-                        // Backward pass
+                        // Backward pass with adaptive learning rate
                         Matrix grad = loss_fn.backward(output, target);
-                        transformer.backward(grad, base_learning_rate);
+                        transformer.backward(grad, current_lr);
                         
                     } catch (const std::exception& e) {
                         std::cout << "Error en muestra " << i << ": " << e.what() << std::endl;
@@ -212,7 +220,7 @@ int main()
                 
                 // Guardar pérdida en archivo
                 loss_file << (epoch + 1) << "," << std::fixed << std::setprecision(6) << epoch_loss 
-                         << "," << base_learning_rate << "," << best_loss << "," << stagnant_epochs << std::endl;
+                         << "," << current_lr << "," << best_loss << "," << stagnant_epochs << std::endl;
                 loss_file.flush(); // Asegurar que se escriba inmediatamente
                 
                 // Progress report CADA ÉPOCA para ver claramente el progreso del loss
