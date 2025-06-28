@@ -1,4 +1,7 @@
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <cmath>
 #include <cuda_runtime.h>
 #include "data/dataset.cuh"
@@ -118,9 +121,9 @@ int main()
             std::cout << "\n=== Iniciando Entrenamiento Optimizado ===" << std::endl;
             
             // Configuración de entrenamiento optimizada
-            int epochs = 50;  // Menos épocas, pero más eficaces
-            int batch_size = 16;   // Batch más grande para mejor eficiencia
-            float base_learning_rate = 0.05f;  // AUMENTAR LR para aprendizaje más rápido
+            int epochs = 300;  // Más épocas con LR estable
+            int batch_size = 16;   // Batch más grande para mejor eficiencia  
+            float base_learning_rate = 0.001f;  // LR mucho menor para evitar overfitting
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -128,12 +131,27 @@ int main()
             std::cout << "  Batch size: " << batch_size << std::endl;
             std::cout << "  Learning rate: " << base_learning_rate << std::endl;
             
+            // Crear archivo para guardar la pérdida
+            std::ofstream loss_file("training_loss.txt");
+            if (!loss_file.is_open()) {
+                std::cerr << "Error: No se pudo crear el archivo training_loss.txt" << std::endl;
+                return 1;
+            }
+            
+            // Escribir encabezado
+            loss_file << "Epoch,Loss,LearningRate,BestLoss,StagnantEpochs" << std::endl;
+            std::cout << "Archivo training_loss.txt creado para guardar la pérdida por época." << std::endl;
+            
             // Crear componentes de entrenamiento (SIMPLE)
             CrossEntropyLoss loss_fn;
             SGD optimizer(base_learning_rate, 0.0f);  // Sin momentum - más simple
             Trainer trainer(transformer, optimizer, loss_fn, batch_size, epochs);
             
             // Bucle de entrenamiento SIMPLE
+            float best_loss = std::numeric_limits<float>::max();
+            float initial_loss = 0.0f;
+            int stagnant_epochs = 0;
+            
             for (int epoch = 0; epoch < epochs; epoch++) {
                 std::cout << "\nÉpoca " << (epoch + 1) << "/" << epochs << std::endl;
                 
@@ -152,8 +170,23 @@ int main()
                 trainer.setVerbose(false);
                 float epoch_loss = trainer.train(source_batches, target_batches);
                 
+                // Guardar estadísticas
+                if (epoch == 0) initial_loss = epoch_loss;
+                if (epoch_loss < best_loss) {
+                    best_loss = epoch_loss;
+                    stagnant_epochs = 0;
+                } else {
+                    stagnant_epochs++;
+                }
+                
+                // Guardar pérdida en archivo
+                loss_file << (epoch + 1) << "," << std::fixed << std::setprecision(6) << epoch_loss 
+                         << "," << base_learning_rate << "," << best_loss << "," << stagnant_epochs << std::endl;
+                loss_file.flush(); // Asegurar que se escriba inmediatamente
+                
                 // Progress report CADA ÉPOCA para ver claramente el progreso del loss
                 std::cout << "Epoca " << (epoch + 1) << "/" << epochs << " - Loss: " << std::fixed << std::setprecision(4) << epoch_loss;
+                if (epoch_loss < best_loss) std::cout << " [MEJOR]";
                 
                 // Test generation cada 10 épocas para verificar traducción
                 if ((epoch + 1) % 10 == 0) {
@@ -161,9 +194,26 @@ int main()
                     std::cout << " | Test: " << spa_vocab.idsToSentence(gen);
                 }
                 std::cout << std::endl;
+                
+                // Advertencia si está estancado
+                if (stagnant_epochs > 20) {
+                    std::cout << "⚠️  Pérdida estancada por " << stagnant_epochs << " épocas" << std::endl;
+                }
             }
             
-            std::cout << "\n¡Entrenamiento completado!" << std::endl;
+            // Cerrar archivo
+            loss_file.close();
+            
+            // Resumen de entrenamiento
+            float improvement = initial_loss - best_loss;
+            float improvement_percent = (improvement / initial_loss) * 100.0f;
+            
+            std::cout << "\n=== RESUMEN DE ENTRENAMIENTO ===" << std::endl;
+            std::cout << "Pérdida inicial: " << std::fixed << std::setprecision(4) << initial_loss << std::endl;
+            std::cout << "Mejor pérdida: " << best_loss << std::endl;
+            std::cout << "Mejora absoluta: " << improvement << std::endl;
+            std::cout << "Mejora porcentual: " << improvement_percent << "%" << std::endl;
+            std::cout << "¡Entrenamiento completado! Pérdida guardada en training_loss.txt" << std::endl;
         }
 
         // PRUEBAS DE TRADUCCIÓN
