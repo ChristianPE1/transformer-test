@@ -171,13 +171,8 @@ int main()
                 double total_loss = 0.0;
                 int samples_processed = 0;
                 
-                // Learning rate adaptativo - acelerar cuando está convergiendo bien
+                // Learning rate base
                 float current_lr = base_learning_rate;
-                if (epoch > 20 && epoch_loss > 0 && best_loss > 3.0f) {
-                    current_lr = base_learning_rate * 1.2f; // 20% más rápido si está por encima de 3.0
-                } else if (epoch > 50 && best_loss > 2.0f) {
-                    current_lr = base_learning_rate * 1.1f; // 10% más rápido si está por encima de 2.0
-                }
                 
                 // Procesar el batch y calcular pérdida promedio
                 for (size_t i = 0; i < std::min(source_batches.size(), static_cast<size_t>(8)); ++i) {
@@ -197,7 +192,7 @@ int main()
                         total_loss += sample_loss;
                         samples_processed++;
                         
-                        // Backward pass with adaptive learning rate
+                        // Backward pass
                         Matrix grad = loss_fn.backward(output, target);
                         transformer.backward(grad, current_lr);
                         
@@ -208,6 +203,13 @@ int main()
                 }
                 
                 float epoch_loss = (samples_processed > 0) ? (total_loss / samples_processed) : 0.0f;
+                
+                // Learning rate adaptativo para la PRÓXIMA época basado en pérdida actual
+                if (epoch > 20 && epoch_loss > 3.0f && best_loss > 3.0f) {
+                    base_learning_rate = base_learning_rate * 1.05f; // Acelerar 5% si está por encima de 3.0
+                } else if (epoch > 50 && best_loss > 2.0f) {
+                    base_learning_rate = base_learning_rate * 1.02f; // Acelerar 2% si está por encima de 2.0
+                }
                 
                 // Guardar estadísticas
                 if (epoch == 0) initial_loss = epoch_loss;
