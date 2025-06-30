@@ -297,6 +297,10 @@ void FeedForward::updateWeights(float learning_rate) {
     
     for (size_t i = 0; i < W1_data.size(); ++i) {
         W1_data[i] -= learning_rate * grad_W1_data[i];
+        
+        // CRÍTICO: Limitar pesos W1 para prevenir explosión
+        if (W1_data[i] > 0.5f) W1_data[i] = 0.5f;
+        if (W1_data[i] < -0.5f) W1_data[i] = -0.5f;
     }
     W1.copyFromHost(W1_data);
     
@@ -331,6 +335,10 @@ void FeedForward::updateWeights(float learning_rate) {
     
     for (size_t i = 0; i < W2_data.size(); ++i) {
         W2_data[i] -= learning_rate * grad_W2_data[i];
+        
+        // CRÍTICO: Limitar pesos W2 para prevenir explosión
+        if (W2_data[i] > 0.5f) W2_data[i] = 0.5f;
+        if (W2_data[i] < -0.5f) W2_data[i] = -0.5f;
     }
     W2.copyFromHost(W2_data);
     
@@ -352,6 +360,10 @@ void FeedForward::updateWeights(float learning_rate) {
             if (grad_b1_h[i] < -1.0f) grad_b1_h[i] = -1.0f;
         }
         b1_h[i] -= learning_rate * grad_b1_h[i];
+        
+        // Limitar bias b1
+        if (b1_h[i] > 0.5f) b1_h[i] = 0.5f;
+        if (b1_h[i] < -0.5f) b1_h[i] = -0.5f;
     }
     
     for (size_t i = 0; i < d_model; ++i) {
@@ -362,6 +374,10 @@ void FeedForward::updateWeights(float learning_rate) {
             if (grad_b2_h[i] < -1.0f) grad_b2_h[i] = -1.0f;
         }
         b2_h[i] -= learning_rate * grad_b2_h[i];
+        
+        // Limitar bias b2
+        if (b2_h[i] > 0.5f) b2_h[i] = 0.5f;
+        if (b2_h[i] < -0.5f) b2_h[i] = -0.5f;
     }
     
     cudaMemcpy(b1, b1_h.data(), d_ff * sizeof(float), cudaMemcpyHostToDevice);
