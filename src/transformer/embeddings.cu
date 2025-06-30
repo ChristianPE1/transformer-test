@@ -280,9 +280,9 @@ void Embedding::updateWeights(const Matrix& gradients, float learning_rate, cons
                 if (abs(grad) > 1e-8f) {
                     current_embedding[j] -= learning_rate * grad;
                     
-                    // CRÍTICO: Limitar pesos para prevenir explosión
-                    if (current_embedding[j] > 0.1f) current_embedding[j] = 0.1f;
-                    if (current_embedding[j] < -0.1f) current_embedding[j] = -0.1f;
+                    // RELAJAR: Limitar pesos para prevenir explosión pero permitir más rango
+                    if (current_embedding[j] > 0.25f) current_embedding[j] = 0.25f;
+                    if (current_embedding[j] < -0.25f) current_embedding[j] = -0.25f;
                     
                     has_update = true;
                 }

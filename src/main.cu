@@ -124,9 +124,9 @@ int main()
             // Configuración de entrenamiento optimizada
             int epochs = 150;  // Más épocas para llegar a pérdida ~3.0
             int batch_size = 16;   // Batch más grande para mejor eficiencia  
-            float base_learning_rate = 0.001f;  // Comenzar con LR más conservador
-            const float max_learning_rate = 0.01f;  // Límite máximo de LR para prevenir explosión
-            const float min_learning_rate = 0.0001f; // Límite mínimo de LR
+            float base_learning_rate = 0.005f;  // Aumentar LR inicial para acelerar
+            const float max_learning_rate = 0.02f;  // Aumentar límite máximo
+            const float min_learning_rate = 0.001f; // Aumentar límite mínimo
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -216,13 +216,13 @@ int main()
                     break;
                 }
                 
-                // NUEVO SISTEMA DE ADAPTACIÓN DE LEARNING RATE CON LÍMITES
-                if (epoch > 20 && epoch_loss < best_loss * 0.99f) {
-                    // Si mejoramos >1%, acelerar ligeramente (máx 2%)
-                    base_learning_rate = std::min(base_learning_rate * 1.02f, max_learning_rate);
-                } else if (epoch > 30 && stagnant_epochs > 10) {
-                    // Si estamos estancados >10 épocas, reducir LR para salir del mínimo local
-                    base_learning_rate = std::max(base_learning_rate * 0.95f, min_learning_rate);
+                // NUEVO SISTEMA DE ADAPTACIÓN DE LEARNING RATE CON LÍMITES - MÁS AGRESIVO
+                if (epoch > 10 && epoch_loss < best_loss * 0.995f) {
+                    // Si mejoramos >0.5%, acelerar más agresivamente (máx 5%)
+                    base_learning_rate = std::min(base_learning_rate * 1.05f, max_learning_rate);
+                } else if (epoch > 15 && stagnant_epochs > 5) {
+                    // Si estamos estancados >5 épocas, reducir LR levemente
+                    base_learning_rate = std::max(base_learning_rate * 0.98f, min_learning_rate);
                 }
                 
                 // Limitar el learning rate por seguridad

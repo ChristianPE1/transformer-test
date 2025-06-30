@@ -289,18 +289,18 @@ void FeedForward::updateWeights(float learning_rate) {
         return;
     }
     
-    // Clip gradients to prevent explosion
+    // Clip gradients para acelerar - menos conservador
     for (size_t i = 0; i < grad_W1_data.size(); ++i) {
-        if (grad_W1_data[i] > 1.0f) grad_W1_data[i] = 1.0f;
-        if (grad_W1_data[i] < -1.0f) grad_W1_data[i] = -1.0f;
+        if (grad_W1_data[i] > 2.0f) grad_W1_data[i] = 2.0f;
+        if (grad_W1_data[i] < -2.0f) grad_W1_data[i] = -2.0f;
     }
     
     for (size_t i = 0; i < W1_data.size(); ++i) {
         W1_data[i] -= learning_rate * grad_W1_data[i];
         
-        // CRÍTICO: Limitar pesos W1 para prevenir explosión
-        if (W1_data[i] > 0.5f) W1_data[i] = 0.5f;
-        if (W1_data[i] < -0.5f) W1_data[i] = -0.5f;
+        // RELAJAR: Limitar pesos W1 para acelerar pero mantener estabilidad
+        if (W1_data[i] > 1.0f) W1_data[i] = 1.0f;
+        if (W1_data[i] < -1.0f) W1_data[i] = -1.0f;
     }
     W1.copyFromHost(W1_data);
     
@@ -327,18 +327,18 @@ void FeedForward::updateWeights(float learning_rate) {
         return;
     }
     
-    // Clip gradients to prevent explosion
+    // Clip gradients para acelerar
     for (size_t i = 0; i < grad_W2_data.size(); ++i) {
-        if (grad_W2_data[i] > 1.0f) grad_W2_data[i] = 1.0f;
-        if (grad_W2_data[i] < -1.0f) grad_W2_data[i] = -1.0f;
+        if (grad_W2_data[i] > 2.0f) grad_W2_data[i] = 2.0f;
+        if (grad_W2_data[i] < -2.0f) grad_W2_data[i] = -2.0f;
     }
     
     for (size_t i = 0; i < W2_data.size(); ++i) {
         W2_data[i] -= learning_rate * grad_W2_data[i];
         
-        // CRÍTICO: Limitar pesos W2 para prevenir explosión
-        if (W2_data[i] > 0.5f) W2_data[i] = 0.5f;
-        if (W2_data[i] < -0.5f) W2_data[i] = -0.5f;
+        // RELAJAR: Limitar pesos W2 para acelerar
+        if (W2_data[i] > 1.0f) W2_data[i] = 1.0f;
+        if (W2_data[i] < -1.0f) W2_data[i] = -1.0f;
     }
     W2.copyFromHost(W2_data);
     
@@ -356,28 +356,28 @@ void FeedForward::updateWeights(float learning_rate) {
         if (std::isnan(grad_b1_h[i]) || std::isinf(grad_b1_h[i])) {
             grad_b1_h[i] = 0.0f;
         } else {
-            if (grad_b1_h[i] > 1.0f) grad_b1_h[i] = 1.0f;
-            if (grad_b1_h[i] < -1.0f) grad_b1_h[i] = -1.0f;
+            if (grad_b1_h[i] > 2.0f) grad_b1_h[i] = 2.0f;
+            if (grad_b1_h[i] < -2.0f) grad_b1_h[i] = -2.0f;
         }
         b1_h[i] -= learning_rate * grad_b1_h[i];
         
-        // Limitar bias b1
-        if (b1_h[i] > 0.5f) b1_h[i] = 0.5f;
-        if (b1_h[i] < -0.5f) b1_h[i] = -0.5f;
+        // Relajar bias b1
+        if (b1_h[i] > 1.0f) b1_h[i] = 1.0f;
+        if (b1_h[i] < -1.0f) b1_h[i] = -1.0f;
     }
     
     for (size_t i = 0; i < d_model; ++i) {
         if (std::isnan(grad_b2_h[i]) || std::isinf(grad_b2_h[i])) {
             grad_b2_h[i] = 0.0f;
         } else {
-            if (grad_b2_h[i] > 1.0f) grad_b2_h[i] = 1.0f;
-            if (grad_b2_h[i] < -1.0f) grad_b2_h[i] = -1.0f;
+            if (grad_b2_h[i] > 2.0f) grad_b2_h[i] = 2.0f;
+            if (grad_b2_h[i] < -2.0f) grad_b2_h[i] = -2.0f;
         }
         b2_h[i] -= learning_rate * grad_b2_h[i];
         
-        // Limitar bias b2
-        if (b2_h[i] > 0.5f) b2_h[i] = 0.5f;
-        if (b2_h[i] < -0.5f) b2_h[i] = -0.5f;
+        // Relajar bias b2
+        if (b2_h[i] > 1.0f) b2_h[i] = 1.0f;
+        if (b2_h[i] < -1.0f) b2_h[i] = -1.0f;
     }
     
     cudaMemcpy(b1, b1_h.data(), d_ff * sizeof(float), cudaMemcpyHostToDevice);

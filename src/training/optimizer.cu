@@ -53,8 +53,8 @@ void SGD::step(float* params, float* grads, size_t size) {
     int blockSize = 256;
     int numBlocks = (size + blockSize - 1) / blockSize;
     
-    // REACTIVAR gradient clipping con valor conservador
-    clipGradientsKernel<<<numBlocks, blockSize>>>(grads, 1.0f, size);
+    // REACTIVAR gradient clipping con valor menos conservador para acelerar aprendizaje
+    clipGradientsKernel<<<numBlocks, blockSize>>>(grads, 2.0f, size);
     cudaDeviceSynchronize();
     
     if (momentum_factor > 0.0f) {
