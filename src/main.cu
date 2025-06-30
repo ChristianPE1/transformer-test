@@ -124,7 +124,9 @@ int main()
             // Configuración de entrenamiento optimizada
             int epochs = 500;  // Más épocas para llegar a pérdida ~3.0
             int batch_size = 16;   // Batch más grande para mejor eficiencia  
-            float base_learning_rate = 0.015f;  // Aumentar LR ligeramente para acelerar
+            float base_learning_rate = 0.001f;  // Comenzar con LR más conservador
+            const float max_learning_rate = 0.01f;  // Límite máximo de LR para prevenir explosión
+            const float min_learning_rate = 0.0001f; // Límite mínimo de LR
             
             std::cout << "Configuración:" << std::endl;
             std::cout << "  Épocas: " << epochs << std::endl;
@@ -171,8 +173,11 @@ int main()
                 double total_loss = 0.0;
                 int samples_processed = 0;
                 
-                // Learning rate base
+                // Learning rate con actualización correcta
                 float current_lr = base_learning_rate;
+                
+                // Actualizar el learning rate en el optimizador
+                optimizer.setLearningRate(current_lr);
                 
                 // Procesar el batch y calcular pérdida promedio
                 for (size_t i = 0; i < std::min(source_batches.size(), static_cast<size_t>(8)); ++i) {
@@ -192,7 +197,7 @@ int main()
                         total_loss += sample_loss;
                         samples_processed++;
                         
-                        // Backward pass
+                        // Backward pass con el learning rate actual
                         Matrix grad = loss_fn.backward(output, target);
                         transformer.backward(grad, current_lr);
                         
@@ -204,12 +209,24 @@ int main()
                 
                 float epoch_loss = (samples_processed > 0) ? (total_loss / samples_processed) : 0.0f;
                 
-                // Learning rate adaptativo para la PRÓXIMA época basado en pérdida actual
-                if (epoch > 20 && epoch_loss > 3.0f && best_loss > 3.0f) {
-                    base_learning_rate = base_learning_rate * 1.05f; // Acelerar 5% si está por encima de 3.0
-                } else if (epoch > 50 && best_loss > 2.0f) {
-                    base_learning_rate = base_learning_rate * 1.02f; // Acelerar 2% si está por encima de 2.0
+                // VERIFICAR NaN/Inf en el loss - detener entrenamiento si ocurre
+                if (std::isnan(epoch_loss) || std::isinf(epoch_loss)) {
+                    std::cout << "❌ ERROR: Loss inválido detectado (NaN/Inf). Deteniendo entrenamiento." << std::endl;
+                    std::cout << "Esto indica inestabilidad numérica. Considera reducir el learning rate." << std::endl;
+                    break;
                 }
+                
+                // NUEVO SISTEMA DE ADAPTACIÓN DE LEARNING RATE CON LÍMITES
+                if (epoch > 20 && epoch_loss < best_loss * 0.99f) {
+                    // Si mejoramos >1%, acelerar ligeramente (máx 2%)
+                    base_learning_rate = std::min(base_learning_rate * 1.02f, max_learning_rate);
+                } else if (epoch > 30 && stagnant_epochs > 10) {
+                    // Si estamos estancados >10 épocas, reducir LR para salir del mínimo local
+                    base_learning_rate = std::max(base_learning_rate * 0.95f, min_learning_rate);
+                }
+                
+                // Limitar el learning rate por seguridad
+                base_learning_rate = std::max(min_learning_rate, std::min(max_learning_rate, base_learning_rate));
                 
                 // Guardar estadísticas
                 if (epoch == 0) initial_loss = epoch_loss;
@@ -220,14 +237,16 @@ int main()
                     stagnant_epochs++;
                 }
                 
-                // Guardar pérdida en archivo
+                // Guardar pérdida en archivo con el learning rate CORRECTO
                 loss_file << (epoch + 1) << "," << std::fixed << std::setprecision(6) << epoch_loss 
-                         << "," << current_lr << "," << best_loss << "," << stagnant_epochs << std::endl;
+                         << "," << base_learning_rate << "," << best_loss << "," << stagnant_epochs << std::endl;
                 loss_file.flush(); // Asegurar que se escriba inmediatamente
                 
                 // Progress report CADA ÉPOCA para ver claramente el progreso del loss
-                std::cout << "Epoca " << (epoch + 1) << "/" << epochs << " - Loss: " << std::fixed << std::setprecision(4) << epoch_loss;
+                std::cout << "Epoca " << (epoch + 1) << "/" << epochs << " - Loss: " << std::fixed << std::setprecision(4) << epoch_loss
+                         << " | LR: " << std::scientific << std::setprecision(3) << base_learning_rate;
                 if (epoch_loss < best_loss) std::cout << " [MEJOR]";
+                if (stagnant_epochs > 5) std::cout << " [Estancado:" << stagnant_epochs << "]";
                 
                 // Test generation cada 10 épocas para verificar traducción
                 if ((epoch + 1) % 10 == 0) {

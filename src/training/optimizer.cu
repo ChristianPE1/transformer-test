@@ -7,8 +7,14 @@ __global__ void clipGradientsKernel(float *gradients, float max_norm, int size) 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
         float grad = gradients[idx];
+        // Clip gradients agresivamente para prevenir explosión
         if (grad > max_norm) gradients[idx] = max_norm;
         else if (grad < -max_norm) gradients[idx] = -max_norm;
+        
+        // También detectar y corregir NaN/Inf
+        if (isnan(grad) || isinf(grad)) {
+            gradients[idx] = 0.0f;
+        }
     }
 }
 
@@ -47,8 +53,9 @@ void SGD::step(float* params, float* grads, size_t size) {
     int blockSize = 256;
     int numBlocks = (size + blockSize - 1) / blockSize;
     
-    // TEMPORARILY DISABLE gradient clipping to see if it's the problem
-    // clipGradientsKernel<<<numBlocks, blockSize>>>(grads, 5.0f, size);
+    // REACTIVAR gradient clipping con valor conservador
+    clipGradientsKernel<<<numBlocks, blockSize>>>(grads, 1.0f, size);
+    cudaDeviceSynchronize();
     
     if (momentum_factor > 0.0f) {
         // Initialize momentum buffer if needed
