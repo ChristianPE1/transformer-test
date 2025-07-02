@@ -12,6 +12,7 @@
 #include "training/loss.cuh"
 #include "training/optimizer.cuh"
 #include "training/trainer.cuh"
+#include "data/mnist_loader.cuh"
 
 int main()
 {
@@ -295,6 +296,45 @@ int main()
             std::cout << "ESP: " << spa_vocab.idsToSentence(generated) << std::endl;
             std::cout << "---" << std::endl;
         }
+
+        // CARGA Y PROCESAMIENTO DEL DATASET MNIST
+        std::cout << "\n=== Cargando y Procesando Dataset MNIST ===" << std::endl;
+
+        // Rutas de los archivos de imágenes y etiquetas de entrenamiento y prueba
+        std::string train_images_path = "data/train-images.idx3-ubyte";
+        std::string train_labels_path = "data/train-labels.idx1-ubyte";
+        std::string test_images_path = "data/t10k-images.idx3-ubyte";
+        std::string test_labels_path = "data/t10k-labels.idx1-ubyte";
+
+        // Cargar dataset MNIST
+        MNISTLoader mnist_loader;
+        auto train_data = mnist_loader.load(train_images_path, train_labels_path);
+        auto test_data = mnist_loader.load(test_images_path, test_labels_path);
+
+        // Procesar datos MNIST en parches
+        int patch_size = 4; // Tamaño de parche de ejemplo
+        auto train_patches = mnist_loader.create_patches(train_data.images, patch_size);
+        auto test_patches = mnist_loader.create_patches(test_data.images, patch_size);
+
+        // Inicializar modelo Vision Transformer
+        VisionTransformer vit_model;
+        vit_model.initialize(patch_size, 10); // 10 clases para MNIST
+
+        // Bucle de entrenamiento para MNIST
+        int num_epochs = 5; // Número de épocas para entrenamiento MNIST
+        for (int epoch = 0; epoch < num_epochs; ++epoch) {
+            float epoch_loss = 0.0f;
+            for (auto& batch : train_patches) {
+                auto predictions = vit_model.forward(batch);
+                auto loss = compute_loss(predictions, batch.labels);
+                vit_model.backward(loss);
+                vit_model.update_weights();
+                epoch_loss += loss;
+            }
+            std::cout << "Epoch " << epoch << " Loss: " << epoch_loss << std::endl;
+        }
+
+        std::cout << "¡Entrenamiento de MNIST completado!" << std::endl;
     }
     catch (const std::exception &e)
     {
