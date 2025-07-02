@@ -1,32 +1,14 @@
 #include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <limits>
-#include <algorithm>
-#include <cmath>
 #include <cuda_runtime.h>
-#include "data/dataset.cuh"
-#include "data/vocab.cuh"
-#include "transformer/transformer.cuh"
-#include "transformer/vision_transformer.cuh"
-#include "utils/matrix.cuh"
-#include "training/loss.cuh"
-#include "training/optimizer.cuh"
-#include "training/trainer.cuh"
+#include "transformer/vit_mnist.cuh"
 #include "data/mnist_loader.cuh"
-
-Matrix compute_loss(const Matrix &predictions, const Matrix &labels) {
-    // Implementación de cálculo de pérdida
-    Matrix loss;
-    // ...
-    return loss;
-}
+#include "training/classification_loss.cuh"
 
 int main()
 {
     try
     {
-        std::cout << "=== Vision Transformer for MNIST ===" << std::endl;
+        std::cout << "=== Vision Transformer for MNIST Classification ===" << std::endl;
 
         // Verify CUDA
         int deviceCount;
@@ -40,44 +22,74 @@ int main()
         }
 
         // Load MNIST dataset
+        std::cout << "Loading MNIST dataset..." << std::endl;
         MNISTLoader loader;
         MNISTData mnist_data = loader.load("data/train-images.idx3-ubyte", "data/train-labels.idx1-ubyte");
+        
+        std::cout << "Loaded " << mnist_data.images.size() << " images and " 
+                  << mnist_data.labels.size() << " labels" << std::endl;
 
         // Initialize Vision Transformer
-        size_t d_model = 128;
-        size_t n_heads = 8;
-        size_t n_layers = 6;
-        size_t d_ff = 512;
-        size_t patch_size = 4;
-        size_t num_classes = 10;
+        int patch_size = 4;  // 28/4 = 7 patches per dimension, 49 total patches
+        int embed_dim = 128;
+        int num_heads = 8;
+        int num_layers = 6;
+        int num_classes = 10;
 
-        VisionTransformer vit_model(d_model, n_heads, n_layers, d_ff);
-        vit_model.initialize(patch_size, num_classes);
+        ViTMNIST vit_model(patch_size, embed_dim, num_heads, num_layers, num_classes);
+        std::cout << "Vision Transformer initialized" << std::endl;
+
+        // Training parameters
+        int num_epochs = 5;
+        int batch_size = 32;
+        float learning_rate = 0.001f;
 
         // Training loop
-        for (size_t epoch = 0; epoch < 10; ++epoch) {
-            std::cout << "Epoch " << epoch + 1 << "..." << std::endl;
-
-            for (const auto &image : mnist_data.images) {
-                // Convert image to Matrix
-                Matrix input(28, 28, 0.0f);
-                input.copyFromHost(image);
-
-                Matrix predictions = vit_model.forward(input);
-
-                // Convert labels to Matrix
-                std::vector<float> labels_vector(mnist_data.labels.begin(), mnist_data.labels.end());
-                Matrix labels(1, mnist_data.labels.size(), 0.0f);
-                labels.copyFromHost(labels_vector);
-
-                auto loss = compute_loss(predictions, labels);
-
-                vit_model.backward(loss);
-                vit_model.update_weights();
+        for (int epoch = 0; epoch < num_epochs; ++epoch) {
+            std::cout << "\nEpoch " << (epoch + 1) << "/" << num_epochs << std::endl;
+            
+            float epoch_loss = 0.0f;
+            int num_batches = 0;
+            
+            // Process images in batches (limit to 100 for testing)
+            for (size_t i = 0; i < std::min((size_t)100, mnist_data.images.size()); i += batch_size) {
+                size_t batch_end = std::min(i + batch_size, mnist_data.images.size());
+                
+                // Process each image in the batch
+                for (size_t j = i; j < batch_end; ++j) {
+                    // Convert image to Matrix
+                    Matrix image(28, 28, 0.0f);
+                    image.copyFromHost(mnist_data.images[j]);
+                    
+                    // Forward pass
+                    Matrix predictions = vit_model.forward(image);
+                    
+                    // Compute loss
+                    std::vector<int> single_label = {mnist_data.labels[j]};
+                    float loss = CrossEntropyLoss::compute_loss(predictions, single_label);
+                    epoch_loss += loss;
+                    
+                    // Compute gradients
+                    Matrix loss_grad = CrossEntropyLoss::compute_gradients(predictions, single_label);
+                    
+                    // Backward pass (simplified)
+                    vit_model.backward(loss_grad);
+                    vit_model.update_weights(learning_rate);
+                }
+                
+                num_batches++;
+                if (num_batches % 10 == 0) {
+                    std::cout << "Processed " << (batch_end) << " samples, avg loss: " 
+                              << (epoch_loss / (batch_end - i)) << std::endl;
+                }
             }
+            
+            std::cout << "Epoch " << (epoch + 1) << " completed. Average loss: " 
+                      << (epoch_loss / std::min((size_t)100, mnist_data.images.size())) << std::endl;
         }
 
-        std::cout << "Training complete." << std::endl;
+        std::cout << "\nTraining completed!" << std::endl;
+
     }
     catch (const std::exception &e)
     {

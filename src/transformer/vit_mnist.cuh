@@ -1,0 +1,50 @@
+#ifndef VIT_MNIST_CUH
+#define VIT_MNIST_CUH
+
+#include "../utils/matrix.cuh"
+#include "../layers/linear.cuh"
+#include "attention.cuh"
+#include "../layers/layer_norm.cuh"
+#include "../layers/feed_forward.cuh"
+
+class PatchEmbedding {
+private:
+    int patch_size;
+    int embed_dim;
+    Matrix projection; // Linear projection for patches
+
+public:
+    PatchEmbedding(int patch_size, int embed_dim);
+    Matrix forward(const Matrix& image); // Convert 28x28 image to patch embeddings
+};
+
+class ViTBlock {
+private:
+    MultiHeadAttention attention;
+    FeedForward mlp;
+    LayerNorm norm1, norm2;
+
+public:
+    ViTBlock(int embed_dim, int num_heads);
+    Matrix forward(const Matrix& x);
+};
+
+class ViTMNIST {
+private:
+    PatchEmbedding patch_embed;
+    std::vector<ViTBlock> blocks;
+    LayerNorm norm;
+    Linear classifier; // Final classification layer
+    Matrix pos_embedding; // Positional embeddings
+    int num_patches;
+    int embed_dim;
+    int num_classes;
+
+public:
+    ViTMNIST(int patch_size = 4, int embed_dim = 128, int num_heads = 8, int num_layers = 6, int num_classes = 10);
+    Matrix forward(const Matrix& x);
+    void backward(const Matrix& loss_grad);
+    void update_weights(float learning_rate = 0.001f);
+};
+
+#endif // VIT_MNIST_CUH
