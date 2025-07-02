@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-include_directories(include src src/data)
+include_directories(include src src/data src/transformer)
 
 file(GLOB_RECURSE CUDA_SOURCES
     "src/*.cu"

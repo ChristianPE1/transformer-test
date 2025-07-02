@@ -8,6 +8,7 @@
 #include "data/dataset.cuh"
 #include "data/vocab.cuh"
 #include "transformer/transformer.cuh"
+#include "transformer/vision_transformer.cuh"
 #include "utils/matrix.cuh"
 #include "training/loss.cuh"
 #include "training/optimizer.cuh"
@@ -317,7 +318,7 @@ int main()
         auto test_patches = mnist_loader.create_patches(test_data.images, patch_size);
 
         // Inicializar modelo Vision Transformer
-        VisionTransformer vit_model;
+        VisionTransformer vit_model(128, 4, 2, 256);
         vit_model.initialize(patch_size, 10); // 10 clases para MNIST
 
         // Bucle de entrenamiento para MNIST
