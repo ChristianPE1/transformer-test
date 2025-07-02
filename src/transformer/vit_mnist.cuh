@@ -27,6 +27,8 @@ private:
 public:
     ViTBlock(int embed_dim, int num_heads);
     Matrix forward(const Matrix& x);
+    Matrix backward(const Matrix& grad_output);
+    void updateWeights(float learning_rate);
 };
 
 class ViTMNIST {

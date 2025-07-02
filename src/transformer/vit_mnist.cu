@@ -60,6 +60,9 @@ ViTBlock::ViTBlock(int embed_dim, int num_heads)
 }
 
 Matrix ViTBlock::forward(const Matrix& x) {
+    // Store input for backward pass
+    Matrix input_copy = x;
+    
     // Multi-head attention with residual connection
     Matrix attn_out = attention.forward(x, x, x, Matrix());
     Matrix x1 = x.add(attn_out);
@@ -71,6 +74,39 @@ Matrix ViTBlock::forward(const Matrix& x) {
     Matrix x2_norm = norm2.forward(x2);
     
     return x2_norm;
+}
+
+Matrix ViTBlock::backward(const Matrix& grad_output) {
+    // Backward through norm2
+    Matrix grad_x2 = norm2.backward(grad_output, Matrix()); // Simplified
+    
+    // Backward through residual connection
+    Matrix grad_mlp_out = grad_x2;
+    Matrix grad_x1_norm = grad_x2;
+    
+    // Backward through MLP
+    Matrix grad_x1_norm_mlp = mlp.backward(grad_mlp_out, Matrix()); // Simplified
+    grad_x1_norm = grad_x1_norm.add(grad_x1_norm_mlp);
+    
+    // Backward through norm1
+    Matrix grad_x1 = norm1.backward(grad_x1_norm, Matrix()); // Simplified
+    
+    // Backward through residual connection
+    Matrix grad_attn_out = grad_x1;
+    Matrix grad_x = grad_x1;
+    
+    // Backward through attention
+    Matrix grad_x_attn = attention.backward(grad_attn_out, Matrix(), Matrix(), Matrix()); // Simplified
+    grad_x = grad_x.add(grad_x_attn);
+    
+    return grad_x;
+}
+
+void ViTBlock::updateWeights(float learning_rate) {
+    attention.updateWeights(learning_rate);
+    mlp.updateWeights(learning_rate);
+    norm1.updateWeights(learning_rate);
+    norm2.updateWeights(learning_rate);
 }
 
 // ViTMNIST Implementation
@@ -137,12 +173,45 @@ Matrix ViTMNIST::forward(const Matrix& x) {
     return classifier.forward(pooled);
 }
 
+// --- Métodos de actualización y retropropagación ---
+
 void ViTMNIST::backward(const Matrix& loss_grad) {
-    // Simplified backward pass - to be implemented
-    std::cout << "Backward pass not implemented yet" << std::endl;
+    // Backward through classifier
+    Matrix grad = classifier.backward(loss_grad);
+    
+    // Expand gradient to match all patches (reverse of global average pooling)
+    Matrix expanded_grad(num_patches, embed_dim, 0.0f);
+    std::vector<float> grad_data(embed_dim);
+    grad.copyToHost(grad_data);
+    
+    std::vector<float> expanded_data(num_patches * embed_dim);
+    for (int i = 0; i < num_patches; i++) {
+        for (int j = 0; j < embed_dim; j++) {
+            expanded_data[i * embed_dim + j] = grad_data[j] / num_patches;
+        }
+    }
+    expanded_grad.copyFromHost(expanded_data);
+    
+    // Backward through layer norm
+    Matrix grad_blocks = norm.backward(expanded_grad, Matrix()); // Simplified
+    
+    // Backward through transformer blocks (in reverse order)
+    Matrix current_grad = grad_blocks;
+    for (int i = blocks.size() - 1; i >= 0; --i) {
+        current_grad = blocks[i].backward(current_grad);
+    }
+    
+    // Note: We don't backward through patch embedding and positional embedding
+    // in this simplified version
 }
 
 void ViTMNIST::update_weights(float learning_rate) {
-    // Simplified weight update - to be implemented
-    std::cout << "Weight update not implemented yet" << std::endl;
+    classifier.updateWeights(learning_rate);
+    norm.updateWeights(learning_rate);
+    for (auto& block : blocks) {
+        block.updateWeights(learning_rate);
+    }
+    // patch_embed weights update would go here in a complete implementation
 }
+
+// --- Métodos para PatchEmbedding y otros componentes pueden agregarse si se requiere entrenamiento completo ---
