@@ -177,7 +177,7 @@ Matrix ViTMNIST::forward(const Matrix& x) {
 
 void ViTMNIST::backward(const Matrix& loss_grad) {
     // Backward through classifier
-    Matrix grad = classifier.backward(loss_grad);
+    Matrix grad = classifier.backward(loss_grad, pooled); // `pooled` es el input original del clasificador
     
     // Expand gradient to match all patches (reverse of global average pooling)
     Matrix expanded_grad(num_patches, embed_dim, 0.0f);
