@@ -14,13 +14,18 @@ Encoder::Encoder(size_t d_model, size_t n_heads, size_t n_layers, size_t d_ff)
 }
 
 void Encoder::forward(const Matrix &input, const Matrix &src_mask, Matrix &output) {
-    // Procesa las capas secuencialmente en CPU
     Matrix current_input = input;
-    
+
     for (size_t i = 0; i < n_layers; ++i) {
-        current_input = layers[i].forward(current_input, &src_mask);
+        Matrix layer_output = layers[i].forward(current_input, &src_mask);
+
+        // Validar dimensiones antes de sumar
+        if (current_input.getRows() != layer_output.getRows() || current_input.getCols() != layer_output.getCols()) {
+            throw std::runtime_error("Matrix dimensions don't match for addition in Encoder layer " + std::to_string(i));
+        }
+
+        current_input = layer_output;
     }
-    
-    // Copia el resultado final al output
+
     output = current_input;
 }
