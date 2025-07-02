@@ -158,7 +158,9 @@ Matrix MultiHeadAttention::forward(const Matrix &query, const Matrix &key, const
         
         // Store attention weights for backward pass
         if (i == 0) {
-            last_attention_weights = scores; // Store for gradient computation
+            Matrix attention_weights(1, seq_len, 0.0f);
+            attention_weights.copyFromHost(scores);
+            last_attention_weights = attention_weights; // Store for gradient computation
         }
         
         // Compute weighted sum of values
