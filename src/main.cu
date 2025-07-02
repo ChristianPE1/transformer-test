@@ -58,21 +58,16 @@ int main()
         for (size_t epoch = 0; epoch < 10; ++epoch) {
             std::cout << "Epoch " << epoch + 1 << "..." << std::endl;
 
-            for (const auto &batch : mnist_data.images) {
-                // Convert batch to a flat vector
-                std::vector<float> flat_batch;
-                for (const auto &row : batch) {
-                    flat_batch.insert(flat_batch.end(), row.begin(), row.end());
-                }
-
-                Matrix input(batch.size(), batch[0].size(), 0.0f);
-                input.copyFromHost(flat_batch);
+            for (const auto &image : mnist_data.images) {
+                // Convert image to Matrix
+                Matrix input(28, 28, 0.0f);
+                input.copyFromHost(image);
 
                 Matrix predictions = vit_model.forward(input);
 
-                // Convert labels to a flat vector
+                // Convert labels to Matrix
                 std::vector<float> labels_vector(mnist_data.labels.begin(), mnist_data.labels.end());
-                Matrix labels(batch.size(), 1, 0.0f);
+                Matrix labels(1, mnist_data.labels.size(), 0.0f);
                 labels.copyFromHost(labels_vector);
 
                 auto loss = compute_loss(predictions, labels);
