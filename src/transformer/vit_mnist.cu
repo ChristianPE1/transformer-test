@@ -24,11 +24,17 @@ Matrix PatchEmbedding::forward(const Matrix& image) {
     int num_patches_per_dim = img_size / patch_size;
     int num_patches = num_patches_per_dim * num_patches_per_dim;
     
+    printf("[PATCH_EMBEDDING] Input image: %dx%d, patch_size: %d, num_patches: %d\n", 
+           image.getRows(), image.getCols(), patch_size, num_patches);
+    
     Matrix patches(num_patches, patch_size * patch_size);
     
     // Extract patches (simplified CPU version)
     std::vector<float> image_data(img_size * img_size);
     image.copyToHost(image_data);
+    
+    printf("[PATCH_EMBEDDING] Image data size: %zu, expected: %d\n", 
+           image_data.size(), img_size * img_size);
     
     std::vector<float> patch_data(num_patches * patch_size * patch_size);
     int patch_idx = 0;
@@ -46,6 +52,9 @@ Matrix PatchEmbedding::forward(const Matrix& image) {
             patch_idx++;
         }
     }
+    
+    printf("[PATCH_EMBEDDING] Patch data size: %zu, patches matrix: %dx%d\n", 
+           patch_data.size(), patches.getRows(), patches.getCols());
     
     patches.copyFromHost(patch_data);
     
