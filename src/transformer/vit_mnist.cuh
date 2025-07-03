@@ -41,6 +41,10 @@ private:
     int num_patches;
     int embed_dim;
     int num_classes;
+    
+    // Variables para almacenar estados intermedios durante forward pass
+    Matrix last_pooled; // Para usar en backward
+    Matrix last_normalized; // Para usar en backward
 
 public:
     ViTMNIST(int patch_size = 4, int embed_dim = 128, int num_heads = 8, int num_layers = 6, int num_classes = 10);

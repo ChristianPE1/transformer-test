@@ -112,7 +112,8 @@ void ViTBlock::updateWeights(float learning_rate) {
 // ViTMNIST Implementation
 ViTMNIST::ViTMNIST(int patch_size, int embed_dim, int num_heads, int num_layers, int num_classes)
     : patch_embed(patch_size, embed_dim), norm(embed_dim), classifier(embed_dim, num_classes),
-      embed_dim(embed_dim), num_classes(num_classes) {
+      embed_dim(embed_dim), num_classes(num_classes), 
+      last_pooled(1, embed_dim, 0.0f), last_normalized(1, embed_dim, 0.0f) {
     
     // Calculate number of patches
     int img_size = 28;
@@ -152,12 +153,12 @@ Matrix ViTMNIST::forward(const Matrix& x) {
     }
     
     // Layer norm
-    Matrix normalized = norm.forward(current);
+    last_normalized = norm.forward(current);
     
     // Global average pooling (take mean across patches)
-    Matrix pooled(1, embed_dim, 0.0f);
+    last_pooled = Matrix(1, embed_dim, 0.0f);
     std::vector<float> norm_data(num_patches * embed_dim);
-    normalized.copyToHost(norm_data);
+    last_normalized.copyToHost(norm_data);
     
     std::vector<float> pool_data(embed_dim, 0.0f);
     for (int i = 0; i < embed_dim; i++) {
@@ -167,17 +168,17 @@ Matrix ViTMNIST::forward(const Matrix& x) {
         }
         pool_data[i] = sum / num_patches;
     }
-    pooled.copyFromHost(pool_data);
+    last_pooled.copyFromHost(pool_data);
     
     // Classification
-    return classifier.forward(pooled);
+    return classifier.forward(last_pooled);
 }
 
 // --- Métodos de actualización y retropropagación ---
 
 void ViTMNIST::backward(const Matrix& loss_grad) {
     // Backward through classifier
-    Matrix grad = classifier.backward(loss_grad, pooled); // `pooled` es el input original del clasificador
+    Matrix grad = classifier.backward(loss_grad, last_pooled); // Usar la variable almacenada
     
     // Expand gradient to match all patches (reverse of global average pooling)
     Matrix expanded_grad(num_patches, embed_dim, 0.0f);
