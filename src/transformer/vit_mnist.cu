@@ -27,7 +27,7 @@ Matrix PatchEmbedding::forward(const Matrix& image) {
     printf("[PATCH_EMBEDDING] Input image: %dx%d, patch_size: %d, num_patches: %d\n", 
            image.getRows(), image.getCols(), patch_size, num_patches);
     
-    Matrix patches(num_patches, patch_size * patch_size);
+    Matrix patches(num_patches, patch_size * patch_size, 0.0f);
     
     // Extract patches (simplified CPU version)
     std::vector<float> image_data(img_size * img_size);
