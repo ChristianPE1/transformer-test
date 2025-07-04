@@ -95,8 +95,36 @@ Matrix Matrix::add(const Matrix &other) const
 
 Matrix Matrix::multiply(const Matrix &other) const
 {
-    // Implementación simplificada
+    if (cols != other.rows)
+    {
+        throw std::runtime_error("Matrix dimensions don't match for multiplication");
+    }
+
     Matrix result(rows, other.cols);
+    
+    // Use CPU implementation for stability
+    std::vector<float> host_a(rows * cols);
+    std::vector<float> host_b(other.rows * other.cols);
+    std::vector<float> host_result(rows * other.cols, 0.0f);
+    
+    // Copy data to host
+    cudaMemcpy(host_a.data(), data, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_b.data(), other.data, other.rows * other.cols * sizeof(float), cudaMemcpyDeviceToHost);
+    
+    // Perform matrix multiplication on CPU
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < other.cols; j++) {
+            float sum = 0.0f;
+            for (int k = 0; k < cols; k++) {
+                sum += host_a[i * cols + k] * host_b[k * other.cols + j];
+            }
+            host_result[i * other.cols + j] = sum;
+        }
+    }
+    
+    // Copy result back to GPU
+    cudaMemcpy(result.data, host_result.data(), rows * other.cols * sizeof(float), cudaMemcpyHostToDevice);
+    
     return result;
 }
 

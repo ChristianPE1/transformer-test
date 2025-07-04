@@ -132,11 +132,3 @@ Este documento describe detalladamente el flujo de datos, las clases y funciones
 
 ---
 
-## 4. Notas Finales
-- El código ahora es encoder-only, enfocado en imágenes.
-- Todos los archivos y funciones de traducción de texto han sido eliminados.
-- El flujo es modular y cada clase tiene responsabilidades claras.
-
----
-
-**¡Tu ViT para MNIST está listo para entrenar y experimentar!**
