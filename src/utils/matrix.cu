@@ -130,13 +130,8 @@ Matrix Matrix::multiply(const Matrix &other) const
 
 void Matrix::copyFromHost(const std::vector<float> &hostData)
 {
-    printf("[MATRIX] copyFromHost - hostData.size(): %zu, matrix size: %d (rows: %d, cols: %d)\n", 
-           hostData.size(), rows * cols, rows, cols);
-    
     if (hostData.size() != rows * cols)
     {
-        printf("[MATRIX] ERROR: Size mismatch - hostData.size(): %zu != rows * cols: %d\n", 
-               hostData.size(), rows * cols);
         throw std::runtime_error("Host data size doesn't match matrix size");
     }
 
