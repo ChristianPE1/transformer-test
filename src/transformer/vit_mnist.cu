@@ -194,13 +194,14 @@ void ViTMNIST::backward(const Matrix& loss_grad) {
     
     // Expand gradient to match all patches (reverse of global average pooling)
     Matrix expanded_grad(num_patches, embed_dim, 0.0f);
-    std::vector<float> grad_data(embed_dim);
+    std::vector<float> grad_data(grad.getRows() * grad.getCols()); // Usar el tamaño real de grad
     grad.copyToHost(grad_data);
     
+    // Expand the gradient from 1x128 to 49x128 (replicate for each patch)
     std::vector<float> expanded_data(num_patches * embed_dim);
     for (int i = 0; i < num_patches; i++) {
         for (int j = 0; j < embed_dim; j++) {
-            expanded_data[i * embed_dim + j] = grad_data[j] / num_patches;
+            expanded_data[i * embed_dim + j] = grad_data[j] / num_patches; // Divide by num_patches for average pooling backward
         }
     }
     expanded_grad.copyFromHost(expanded_data);
