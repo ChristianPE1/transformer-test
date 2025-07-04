@@ -46,7 +46,7 @@ Matrix FeedForward::forward(const Matrix &input) {
     int d_ff = this->d_ff;
     int output_dim = this->d_model;
 
-    // Use CPU implementation for stability
+    // O aqui CPU para mas estabilidad
     std::vector<float> input_h, W1_h, W2_h, b1_h, b2_h;
     input.copyToHost(input_h);
     W1.copyToHost(W1_h);
@@ -166,7 +166,6 @@ Matrix FeedForward::backward(const Matrix &grad_output, const Matrix &input) {
     // Initialize gradient for input
     Matrix grad_input(batch_size, input_dim, 0.0f);
     
-    // REAL BACKWARD PASS FOR FEEDFORWARD
     // FFN: output = W2 * ReLU(W1 * input + b1) + b2
     // We need to compute gradients through ReLU activation
     

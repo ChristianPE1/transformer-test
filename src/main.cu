@@ -30,7 +30,7 @@ int main()
                   << mnist_data.labels.size() << " labels" << std::endl;
 
         // Initialize Vision Transformer
-        int patch_size = 4;  // 28/4 = 7 patches per dimension, 49 total patches
+        int patch_size = 4;  // 28/4 = 7 patches por dimension, 49 total patches
         int embed_dim = 128;
         int num_heads = 8;
         int num_layers = 6;

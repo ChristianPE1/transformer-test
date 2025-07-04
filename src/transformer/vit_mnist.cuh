@@ -11,11 +11,11 @@ class PatchEmbedding {
 private:
     int patch_size;
     int embed_dim;
-    Matrix projection; // Linear projection for patches
+    Matrix projection; // Proyección lineal para los parches
 
 public:
     PatchEmbedding(int patch_size, int embed_dim);
-    Matrix forward(const Matrix& image); // Convert 28x28 image to patch embeddings
+    Matrix forward(const Matrix& image); // Convierte la imagen 28x28 en parches
 };
 
 class ViTBlock {
@@ -36,8 +36,8 @@ private:
     PatchEmbedding patch_embed;
     std::vector<ViTBlock> blocks;
     LayerNorm norm;
-    Linear classifier; // Final classification layer
-    Matrix pos_embedding; // Positional embeddings
+    Linear classifier; // Capa de clasificación final
+    Matrix pos_embedding; // Embeddings posicionales
     int num_patches;
     int embed_dim;
     int num_classes;

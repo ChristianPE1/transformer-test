@@ -69,10 +69,10 @@ ViTBlock::ViTBlock(int embed_dim, int num_heads)
 }
 
 Matrix ViTBlock::forward(const Matrix& x) {
-    // Store input for backward pass
+    // Almacenamos la entrada para la retropropagación
     Matrix input_copy = x;
     
-    // Multi-head attention with residual connection
+    // Multi-head attention con residual connection
     Matrix attn_out = attention.forward(x, x, x, Matrix());
     Matrix x1 = x.add(attn_out);
     Matrix x1_norm = norm1.forward(x1);
@@ -86,10 +86,10 @@ Matrix ViTBlock::forward(const Matrix& x) {
 }
 
 Matrix ViTBlock::backward(const Matrix& grad_output) {
-    // Backward through norm2
+    // Backward  a través de la normalización 2
     Matrix grad_x2 = norm2.backward(grad_output, Matrix()); // Simplified
     
-    // Backward through residual connection
+    // Backward  a través de la conexión residual
     Matrix grad_mlp_out = grad_x2;
     Matrix grad_x1_norm = grad_x2;
     
@@ -98,7 +98,7 @@ Matrix ViTBlock::backward(const Matrix& grad_output) {
     grad_x1_norm = grad_x1_norm.add(grad_x1_norm_mlp);
     
     // Backward through norm1
-    Matrix grad_x1 = norm1.backward(grad_x1_norm, Matrix()); // Simplified
+    Matrix grad_x1 = norm1.backward(grad_x1_norm, Matrix()); // SImple por ahora
     
     // Backward through residual connection
     Matrix grad_attn_out = grad_x1;
