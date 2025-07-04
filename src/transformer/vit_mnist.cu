@@ -56,6 +56,9 @@ Matrix PatchEmbedding::forward(const Matrix& image) {
     printf("[PATCH_EMBEDDING] Patch data size: %zu, patches matrix: %dx%d\n", 
            patch_data.size(), patches.getRows(), patches.getCols());
     
+    printf("[PATCH_EMBEDDING] About to call copyFromHost - patch_data.size(): %zu, matrix size: %d\n", 
+           patch_data.size(), patches.getRows() * patches.getCols());
+    
     patches.copyFromHost(patch_data);
     
     // Project patches to embedding dimension
